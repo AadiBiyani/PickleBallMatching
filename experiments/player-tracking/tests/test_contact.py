@@ -58,3 +58,54 @@ class TestLandmarks(unittest.TestCase):
         landmarks[contact.RIGHT_HEEL] = None
         point = contact.contact_from_landmarks(landmarks, width=80, height=40)
         self.assertEqual(point, (40.0, 20.0))
+
+
+class TestClassifyContact(unittest.TestCase):
+    def test_both_visible_heels_use_the_midpoint(self):
+        sample = contact.classify_contact(
+            (10.0, 20.0, 0.9), (30.0, 40.0, 0.9), width=100, height=80
+        )
+        self.assertEqual(sample.status, contact.BOTH_HEELS)
+        self.assertEqual(sample.pixel, (20.0, 30.0))
+
+    def test_an_obstructed_heel_keeps_the_other_and_is_labeled(self):
+        sample = contact.classify_contact(
+            (5.0, 6.0, 0.2), (15.0, 26.0, 0.8), width=100, height=80
+        )
+        self.assertEqual(sample.status, contact.SINGLE_HEEL)
+        self.assertEqual(sample.pixel, (15.0, 26.0))
+
+    def test_one_heel_outside_the_image_still_uses_the_other(self):
+        sample = contact.classify_contact(
+            (-4.0, 10.0, 0.9), (15.0, 26.0, 0.8), width=100, height=80
+        )
+        self.assertEqual(sample.status, contact.SINGLE_HEEL)
+        self.assertEqual(sample.pixel, (15.0, 26.0))
+
+    def test_both_heels_outside_the_image_have_no_pixel(self):
+        sample = contact.classify_contact(
+            (-1.0, 10.0, 0.9), (120.0, 10.0, 0.9), width=100, height=80
+        )
+        self.assertIsNone(sample.pixel)
+        self.assertEqual(sample.status, contact.OUT_OF_FRAME)
+
+    def test_both_heels_hidden_inside_the_image_are_no_contact(self):
+        sample = contact.classify_contact(
+            (10.0, 10.0, 0.2), (20.0, 20.0, 0.1), width=100, height=80
+        )
+        self.assertIsNone(sample.pixel)
+        self.assertEqual(sample.status, contact.NO_CONTACT)
+
+    def test_a_pixel_on_the_far_edge_is_outside(self):
+        sample = contact.classify_contact(
+            (100.0, 10.0, 0.9), (10.0, 80.0, 0.9), width=100, height=80
+        )
+        self.assertEqual(sample.status, contact.OUT_OF_FRAME)
+
+    def test_normalized_heels_outside_the_frame_are_out_of_frame(self):
+        landmarks = [None] * 33
+        landmarks[contact.LEFT_HEEL] = SimpleNamespace(x=-0.1, y=0.5, visibility=0.9)
+        landmarks[contact.RIGHT_HEEL] = SimpleNamespace(x=1.2, y=0.5, visibility=0.9)
+        sample = contact.classify_from_landmarks(landmarks, width=200, height=100)
+        self.assertIsNone(sample.pixel)
+        self.assertEqual(sample.status, contact.OUT_OF_FRAME)

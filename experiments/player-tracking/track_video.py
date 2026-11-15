@@ -5,7 +5,8 @@ The camera must stay still, and one person is in frame.  You click the four
 court corners on the first frame, then press 3.  MediaPipe Pose Landmarker (lite) finds the
 heels in every frame.  Each contact pixel is mapped with the same homography
 main.py uses, and the result is a court diagram with a red dot, plus a CSV of
-positions in feet.
+positions in feet.  The CSV contact column says whether that position came
+from both heels, one heel, or no in-frame heels.
 
 The original frames are not warped.  The diagram is the drawn court from
 perspective.draw_court_diagram.
@@ -93,7 +94,7 @@ def ensure_model(path=MODEL_PATH):
 
 
 class PoseContacts:
-    """Heel contact pixel for each frame, from one Pose Landmarker pass.
+    """Heel contact sample for each frame, from one Pose Landmarker pass.
 
     Call close() when finished.  The landmarker is created on first use so
     importing this module does not require mediapipe.
@@ -124,9 +125,9 @@ class PoseContacts:
         self._last_timestamp_ms = timestamp
         result = self._landmarker.detect_for_video(mp_image, timestamp)
         if not result.pose_landmarks:
-            return None
+            return contact.ContactSample(None, contact.OUT_OF_FRAME)
         height, width = frame.shape[:2]
-        return contact.contact_from_landmarks(
+        return contact.classify_from_landmarks(
             result.pose_landmarks[0], width, height, self._min_visibility
         )
 
@@ -241,8 +242,10 @@ def play_animation(base, history, ppf, margin, trail, fps):
 def process_video(video_path, calib, contact_at, out_dir, trail=TRAIL_LENGTH, preview=False):
     """Map every frame and write output/court_path.mp4 and positions.csv.
 
-    contact_at(frame, index, fps) returns an (x, y) image pixel or None.
-    Returns a small dict describing what was written.
+    contact_at(frame, index, fps) returns a contact.ContactSample.  both_heels
+    and single_heel rows keep court feet.  out_of_frame and no_contact rows
+    leave the feet blank and the clip continues.  Returns a small dict
+    describing what was written.
     """
     os.makedirs(out_dir, exist_ok=True)
     cap = cv2.VideoCapture(video_path)
@@ -270,17 +273,25 @@ def process_video(video_path, calib, contact_at, out_dir, trail=TRAIL_LENGTH, pr
     try:
         with open(csv_out, "w", newline="", encoding="utf-8") as handle:
             rows = csv.writer(handle)
-            rows.writerow(["frame", "time_s", "x_ft", "y_ft"])
+            rows.writerow(["frame", "time_s", "x_ft", "y_ft", "contact"])
             while True:
                 ok, frame = cap.read()
                 if not ok:
                     break
-                feet = court_point(calib, contact_at(frame, n, fps))
+                sample = contact_at(frame, n, fps)
+                status = sample.status
+                feet = None
+                if status in (contact.BOTH_HEELS, contact.SINGLE_HEEL):
+                    feet = court_point(calib, sample.pixel)
                 if feet is None:
-                    rows.writerow([n, f"{n / fps:.3f}", "", ""])
+                    if status not in (contact.OUT_OF_FRAME, contact.NO_CONTACT):
+                        status = contact.NO_CONTACT
+                    rows.writerow([n, f"{n / fps:.3f}", "", "", status])
                 else:
                     n_hit += 1
-                    rows.writerow([n, f"{n / fps:.3f}", f"{feet[0]:.3f}", f"{feet[1]:.3f}"])
+                    rows.writerow([
+                        n, f"{n / fps:.3f}", f"{feet[0]:.3f}", f"{feet[1]:.3f}", status,
+                    ])
                 history.append(feet)
                 writer.write(render_track(base, history, ppf, margin, trail))
                 n += 1
