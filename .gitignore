@@ -1,0 +1,21 @@
+# Installed environments and packages
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+# Downloaded pose model and generated tracking output
+experiments/player-tracking/models/
+experiments/player-tracking/output/
+output/
+
+# OS
+.DS_Store
+
+# videos
+.mp4
+.mov
+.MOV
