@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#125c46" />
+    <meta name="description" content="Explore synthetic pickleball drill results and the attempts included in each success rate." />
+    <title>Drill results · Partner Coordination</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to results</a>
+    <header class="site-header">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 40 48" fill="none" aria-hidden="true">
+          <rect x="3" y="3" width="34" height="42" rx="4" stroke="currentColor" stroke-width="2" />
+          <path d="M3 17h34M3 31h34M20 3v14m0 14v14M3 24h34" stroke="currentColor" stroke-width="2" />
+        </svg>
+        <span>Partner Coordination<span class="brand-subtitle">Personalized doubles. Informed by your drills.</span></span>
+      </div>
+      <span class="project-label">Senior Design experiment</span>
+    </header>
+
+    <main id="main" class="page">
+      <div class="page-heading">
+        <div><h1>Drill results</h1><p class="intro">Every attempt, with the scoring explained.</p></div>
+        <div class="control session-control">
+          <label for="session-select">Example session</label>
+          <select id="session-select"></select>
+        </div>
+      </div>
+
+      <aside class="sample-notice" aria-label="Data source">
+        <span class="sample-badge">Sample data</span>
+        <p>These examples are synthetic. No recording was analyzed.</p>
+      </aside>
+
+      <noscript><p class="error-panel">Enable JavaScript to explore the sample sessions.</p></noscript>
+
+      <section id="validation-error" class="error-panel" role="alert" hidden>
+        <h2>This example contains invalid data</h2>
+        <p>No results were calculated. Choose another example session to continue.</p>
+        <ul id="validation-issues"></ul>
+      </section>
+
+      <div id="results" hidden>
+        <section id="summary" aria-labelledby="session-title">
+          <div class="session-heading">
+            <div><h2 id="session-title"></h2><p class="recorded">Recording date: <time id="recorded-at"></time></p></div>
+            <span id="session-id" class="session-id"></span>
+          </div>
+          <dl class="summary-strip">
+            <div class="metric"><dt>Total attempts</dt><dd data-testid="total"></dd><dd class="metric-note">All supplied attempts</dd></div>
+            <div class="metric"><dt>Scored attempts</dt><dd data-testid="scored"></dd><dd class="metric-note">Successful + unsuccessful</dd></div>
+            <div class="metric"><dt>Excluded attempts</dt><dd data-testid="excluded"></dd><dd class="metric-note">Invalid feed + uncertain</dd></div>
+            <div class="metric rate"><dt>Success rate</dt><dd data-testid="success-rate"></dd><dd class="metric-note" id="rate-note"></dd></div>
+          </dl>
+          <dl class="outcome-counts" aria-label="Counts by outcome">
+            <div><dt><span class="dot successful" aria-hidden="true"></span>Successful</dt><dd data-outcome-count="successful"></dd></div>
+            <div><dt><span class="dot unsuccessful" aria-hidden="true"></span>Unsuccessful</dt><dd data-outcome-count="unsuccessful"></dd></div>
+            <div><dt><span class="dot invalid_feed" aria-hidden="true"></span>Invalid feed</dt><dd data-outcome-count="invalid_feed"></dd></div>
+            <div><dt><span class="dot uncertain" aria-hidden="true"></span>Uncertain</dt><dd data-outcome-count="uncertain"></dd></div>
+          </dl>
+        </section>
+
+        <section class="attempts-section" aria-labelledby="attempts-title">
+          <div class="attempts-heading">
+            <div><h2 id="attempts-title">Attempt breakdown</h2><p>Excluded attempts stay visible, with a reason.</p></div>
+            <div class="control filter-control">
+              <label for="outcome-filter">Filter by outcome</label>
+              <select id="outcome-filter">
+                <option value="all">All outcomes</option>
+                <option value="successful">Successful</option>
+                <option value="unsuccessful">Unsuccessful</option>
+                <option value="invalid_feed">Invalid feed</option>
+                <option value="uncertain">Uncertain</option>
+              </select>
+            </div>
+          </div>
+          <p id="list-status" class="list-status" role="status"></p>
+          <div class="list-head" aria-hidden="true"><span>Attempt</span><span>Outcome</span><span>Scoring note</span></div>
+          <ol id="attempt-list" class="attempt-list" aria-label="Drill attempts"></ol>
+          <div id="empty-state" class="empty-state" hidden><h3 id="empty-title"></h3><p id="empty-note"></p></div>
+        </section>
+      </div>
+      <footer class="page-footer"><p>Success rate uses scored attempts only. Invalid feeds and uncertain outcomes are excluded.</p></footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
