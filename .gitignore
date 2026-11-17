@@ -1,0 +1,48 @@
+# Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Claude Code personal files
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Python
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+dist/
+playwright-report/
+test-results/
+
+# Downloaded models and generated output
+experiments/player-tracking/models/
+experiments/player-tracking/output/
+models/
+output/
+
+# Recordings and extracted frames. Footage never goes in Git.
+*.mp4
+*.mov
+*.MOV
+*.avi
+*.mkv
+frames/
+data/raw/
+
+# OS and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,8 @@
+# Generated runs, cached raw responses, extracted and annotated frames
+output/
+# Local clips and label files (may identify participants)
+data/
+*.labels.csv
+# Local virtual environment and secrets
+.venv/
+.env
