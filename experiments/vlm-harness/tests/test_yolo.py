@@ -23,9 +23,7 @@ from harness.run import main, run_harness
 @pytest.fixture
 def exported(tmp_path):
     video = tmp_path / "synthetic.avi"
-    writer = cv2.VideoWriter(
-        str(video), cv2.VideoWriter_fourcc(*"MJPG"), 10, (200, 440)
-    )
+    writer = cv2.VideoWriter(str(video), cv2.VideoWriter_fourcc(*"MJPG"), 10, (200, 440))
     assert writer.isOpened()
     for _ in range(6):
         writer.write(np.zeros((440, 200, 3), dtype=np.uint8))
@@ -43,9 +41,7 @@ def exported(tmp_path):
                     "frame_index": index,
                     "timestamp_s": index / 10,
                     "selected_track_id": track,
-                    "status": (
-                        "target_not_detected" if index == 3 else "keypoints_unreliable"
-                    )
+                    "status": ("target_not_detected" if index == 3 else "keypoints_unreliable")
                     if missing
                     else "ok",
                     "reason": "Synthetic missing observation" if missing else None,
@@ -102,9 +98,7 @@ def exported(tmp_path):
 
 
 def analyzer_for(exported, player="player_1"):
-    return create_analyzer(
-        "yolo:yolo26n-pose", positions_path=exported[1], player_id=player
-    )
+    return create_analyzer("yolo:yolo26n-pose", positions_path=exported[1], player_id=player)
 
 
 def test_registration_requires_explicit_export_and_player(exported):
@@ -113,9 +107,7 @@ def test_registration_requires_explicit_export_and_player(exported):
     with pytest.raises(ValueError, match="Unknown YOLO player_id"):
         analyzer_for(exported, "spectator")
     with pytest.raises(ValueError, match="model must match"):
-        create_analyzer(
-            "yolo:yolo11n-pose", positions_path=exported[1], player_id="player_1"
-        )
+        create_analyzer("yolo:yolo11n-pose", positions_path=exported[1], player_id="player_1")
     assert analyzer_for(exported).model_id == "yolo26n-pose.pt"
     with pytest.raises(ValueError, match="only to the yolo"):
         create_analyzer("fake", positions_path=exported[1])
@@ -139,8 +131,7 @@ def test_shared_projection_missing_rows_labels_and_audit(exported, tmp_path, lon
     video, _, corners, _ = exported
     labels = tmp_path / "labels.csv"
     labels.write_text(
-        "time_s,zone,x_ft,y_ft\n"
-        + "".join(f"{index / 10},kitchen_left,5,25\n" for index in range(2, 6))
+        "time_s,zone,x_ft,y_ft\n" + "".join(f"{index / 10},kitchen_left,5,25\n" for index in range(2, 6))
     )
     analyzer = analyzer_for(exported)
     outcome = run_harness(
@@ -177,12 +168,8 @@ def test_shared_projection_missing_rows_labels_and_audit(exported, tmp_path, lon
     assert audit["tracking_metadata"]["point_source"] == "ankle_midpoint"
     assert audit["samples"][1]["observation"]["status"] == "target_not_detected"
     assert audit["samples"][2]["observation"]["status"] == "keypoints_unreliable"
-    assert (
-        audit["samples"][1]["observation"]["reason"] == "Synthetic missing observation"
-    )
-    assert (
-        "ultralytics" not in __import__("sys").modules
-    )  # reading exports does not load a model
+    assert audit["samples"][1]["observation"]["reason"] == "Synthetic missing observation"
+    assert "ultralytics" not in __import__("sys").modules  # reading exports does not load a model
 
 
 def test_source_identity_dimensions_and_window_are_checked(exported, tmp_path):

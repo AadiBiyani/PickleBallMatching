@@ -14,6 +14,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+
 DEFAULT_FPS = 1.0
 
 
@@ -91,15 +92,9 @@ def extract_frames(
             if native_width is None:
                 native_height, native_width = image.shape[:2]
             if index == target:
-                shown = (
-                    image
-                    if long_side_px is None
-                    else resize_long_side(image, long_side_px)
-                )
+                shown = image if long_side_px is None else resize_long_side(image, long_side_px)
                 height, width = shown.shape[:2]
-                frames.append(
-                    Frame(k, round(index / src_fps, 3), width, height, shown, index)
-                )
+                frames.append(Frame(k, round(index / src_fps, 3), width, height, shown, index))
                 k += 1
                 target = start_frame + round(k * src_fps / fps)
                 while target <= index:

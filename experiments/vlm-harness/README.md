@@ -14,7 +14,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-For YOLO, use the existing **Python 3.12** environment in `../player-tracking-yolo/.venv` instead. Set it up with `uv sync --frozen --python 3.12` from that experiment first. Its locked dependencies also satisfy this harness. The export adapter downloads no model or dependency. The harness now uses `opencv-python`, matching YOLO, because it needs no contrib-only APIs. [OpenCV's package instructions](https://pypi.org/project/opencv-python/) require choosing one distribution because they share `cv2`; use a fresh environment if you previously installed contrib.
+For YOLO, use the separate **Python 3.12** environment in `../player-tracking-yolo/.venv`. From that experiment, run `uv sync --frozen --python 3.12` first. Run the harness with that interpreter as shown below; **do not also install this directory's requirements into the YOLO environment**. The export adapter downloads no model or dependency.
+
+The harness requirements retain the versions from `main`; MediaPipe PR #3 owns its additional model dependency. YOLO keeps its own locked `opencv-python` environment. These are separate installation paths, not one combined dependency set. The shared geometry and adapter software tests have been exercised with YOLO's installed versions, but real MediaPipe inference has not been validated in that environment. [OpenCV's package instructions](https://pypi.org/project/opencv-python/) require choosing one distribution per environment because all variants install `cv2`; installing distributions in a particular order does not provide isolation. A future shared UI can dispatch each pipeline to its environment while consuming the common result contract.
 
 ## Save corners once
 
@@ -70,7 +72,7 @@ The model remains **YOLO26n-pose (`yolo26n-pose.pt`) + ByteTrack**. Ankle midpoi
 
 ## Add a model
 
-Add one module under `harness/analyzers/` with `locate(frames) -> points`. Each point is a `LocatedPoint`: the sample index and `x_px`, `y_px` in that frame, or both coordinates null when not visible. Register it in `_FACTORIES` in `harness/analyzers/base.py`. Factories accept a model identifier and optional keyword configuration; reject unused configuration. The module must not apply homography or choose zones. Export-backed analyzers may implement `validate_video(video, width, height, start_frame, stop_frame)` and `provenance()`; the runner calls these to validate the source and retain an audit file.
+Add one module under `harness/analyzers/` with `locate(frames) -> points`. Each point is a `LocatedPoint`: the sample index and `x_px`, `y_px` in that frame, or both coordinates null when not visible. Register it in `_FACTORIES` in `harness/analyzers/base.py`. Ordinary factories keep the existing `factory(model)` signature; the registry passes export configuration only to YOLO and rejects YOLO-only options for other analyzers. The module must not apply homography or choose zones. Export-backed analyzers may implement `validate_video(video, width, height, start_frame, stop_frame)` and `provenance()`; the runner calls these to validate the source and retain an audit file.
 
 `prompts/foot_v1.txt` is the foot-point prompt for a later vision-language adapter.
 
@@ -83,3 +85,10 @@ python -m pytest -v
 The tests use a synthetic clip and do not download a model.
 
 To include YOLO adapter tests, use `../player-tracking-yolo/.venv/bin/python -m pytest -v`. They explicitly skip when the optional `player_tracking` package is absent. Fabricated observations test contract errors, exact frame/player selection, scaling, missing rows, shared geometry, CLI behavior and output preservation; they do not measure YOLO accuracy.
+
+The experiment's `ruff.toml` uses the YOLO package's 110-character line length for new code. Keep existing shared-file layout when making focused changes, rather than reformatting surrounding code. From this directory:
+
+```sh
+../player-tracking-yolo/.venv/bin/ruff check harness/analyzers/base.py harness/analyzers/yolo.py harness/frames.py harness/run.py tests/test_run.py tests/test_yolo.py tests/test_analyzers.py
+../player-tracking-yolo/.venv/bin/ruff format --check harness/analyzers/yolo.py tests/test_yolo.py tests/test_analyzers.py
+```

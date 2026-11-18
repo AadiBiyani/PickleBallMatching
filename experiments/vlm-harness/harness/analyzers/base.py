@@ -6,7 +6,7 @@ court corners. A model pull request adds one module and one entry in _FACTORIES.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Protocol
 
@@ -24,14 +24,9 @@ class Analyzer(Protocol):
         ...
 
 
-def _make_fake(model: str, **options) -> Analyzer:
+def _make_fake(model: str) -> Analyzer:
     from .fake import FakeAnalyzer
 
-    if (
-        options.get("positions_path") is not None
-        or options.get("player_id") is not None
-    ):
-        raise ValueError("--positions and --player-id apply only to the yolo analyzer")
     return FakeAnalyzer(model)
 
 
@@ -42,7 +37,7 @@ def _make_yolo(model: str, **options) -> Analyzer:
     return YoloAnalyzer(model_id=model, **options)
 
 
-_FACTORIES = {
+_FACTORIES: dict[str, Callable[..., Analyzer]] = {
     "fake": _make_fake,
     "yolo": _make_yolo,
 }
@@ -60,8 +55,9 @@ def create_analyzer(
     if kind not in _FACTORIES:
         known = ", ".join(sorted(_FACTORIES))
         raise ValueError(f"unknown analyzer {kind!r} in {spec!r}; choose from {known}")
-    return _FACTORIES[kind](
-        model.strip(),
-        positions_path=positions_path,
-        player_id=player_id,
-    )
+    if kind == "yolo":
+        return _FACTORIES[kind](model.strip(), positions_path=positions_path, player_id=player_id)
+    if positions_path is not None or player_id is not None:
+        raise ValueError("--positions and --player-id apply only to the yolo analyzer")
+    # Other model PRs register factories taking only the model identifier.
+    return _FACTORIES[kind](model.strip())

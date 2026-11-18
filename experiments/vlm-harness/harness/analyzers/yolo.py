@@ -14,9 +14,7 @@ class YoloAnalyzer:
 
     def __init__(self, *, positions_path=None, player_id=None, model_id=""):
         if positions_path is None or not player_id:
-            raise ValueError(
-                "yolo requires --positions <positions.json> and an explicit --player-id"
-            )
+            raise ValueError("yolo requires --positions <positions.json> and an explicit --player-id")
         try:
             from player_tracking.contracts import FrameRecord
             from player_tracking.video import sha256_file
@@ -34,17 +32,14 @@ class YoloAnalyzer:
         if not isinstance(metadata, dict) or metadata.get("complete") is not True:
             raise ValueError("YOLO evaluation requires a complete tracking run")
         if metadata.get("processing_stride") != 1:
-            raise ValueError(
-                "YOLO export must come from continuous tracking (processing_stride 1)"
-            )
+            raise ValueError("YOLO export must come from continuous tracking (processing_stride 1)")
         if metadata.get("coordinate_system") != "original_image_pixels":
             raise ValueError("YOLO coordinates must be original_image_pixels")
         if metadata.get("point_source") != "ankle_midpoint":
             raise ValueError("YOLO export must declare point_source ankle_midpoint")
         self.model_id = metadata.get("model_name")
         if self.model_id != "yolo26n-pose.pt" or (
-            model_id
-            and model_id.removesuffix(".pt") != self.model_id.removesuffix(".pt")
+            model_id and model_id.removesuffix(".pt") != self.model_id.removesuffix(".pt")
         ):
             raise ValueError("YOLO model must match the export: yolo26n-pose.pt")
         source = metadata.get("source")
@@ -55,9 +50,7 @@ class YoloAnalyzer:
                 raise ValueError(f"YOLO source {field} must be a positive integer")
         track_ids = metadata.get("selected_track_ids")
         if not isinstance(track_ids, dict) or player_id not in track_ids:
-            raise ValueError(
-                f"Unknown YOLO player_id {player_id!r}; choose from {track_ids}"
-            )
+            raise ValueError(f"Unknown YOLO player_id {player_id!r}; choose from {track_ids}")
         start = metadata.get("start_frame")
         count = metadata.get("processed_frame_count")
         if type(start) is not int or start < 0 or type(count) is not int or count < 1:
@@ -76,39 +69,21 @@ class YoloAnalyzer:
             if key in seen:
                 raise ValueError(f"Duplicate YOLO observation {key}")
             seen.add(key)
-            if (
-                row.player_id not in track_ids
-                or row.selected_track_id != track_ids[row.player_id]
-            ):
-                raise ValueError(
-                    "YOLO observation does not match its selected player/track ID"
-                )
+            if row.player_id not in track_ids or row.selected_track_id != track_ids[row.player_id]:
+                raise ValueError("YOLO observation does not match its selected player/track ID")
             if not start <= row.frame_index < start + count:
-                raise ValueError(
-                    "YOLO observation lies outside its declared frame window"
-                )
+                raise ValueError("YOLO observation lies outside its declared frame window")
             coords = (row.image_x_px, row.image_y_px)
             if row.status == "ok":
                 if any(value is None for value in coords):
                     raise ValueError("YOLO ok observations require both coordinates")
-                if not (
-                    0 <= coords[0] < source["width"]
-                    and 0 <= coords[1] < source["height"]
-                ):
+                if not (0 <= coords[0] < source["width"] and 0 <= coords[1] < source["height"]):
                     raise ValueError("YOLO point lies outside the source image")
             elif coords != (None, None):
-                raise ValueError(
-                    "Missing YOLO observations require two null coordinates"
-                )
-        self.records = {
-            row.frame_index: row for row in rows if row.player_id == player_id
-        }
-        if len(self.records) != count or set(self.records) != set(
-            range(start, start + count)
-        ):
-            raise ValueError(
-                "Selected YOLO player must have one observation per tracked source frame"
-            )
+                raise ValueError("Missing YOLO observations require two null coordinates")
+        self.records = {row.frame_index: row for row in rows if row.player_id == player_id}
+        if len(self.records) != count or set(self.records) != set(range(start, start + count)):
+            raise ValueError("Selected YOLO player must have one observation per tracked source frame")
         self.metadata = metadata
         self.player_id = player_id
         self.start_frame = start
@@ -142,9 +117,7 @@ class YoloAnalyzer:
         source = self.metadata["source"]
         for frame in frames:
             if frame.source_frame_index is None:
-                raise ValueError(
-                    "YOLO evaluation requires source_frame_index on every sampled frame"
-                )
+                raise ValueError("YOLO evaluation requires source_frame_index on every sampled frame")
             row = self.records.get(frame.source_frame_index)
             if row is None:
                 raise ValueError(

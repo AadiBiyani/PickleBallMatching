@@ -17,13 +17,6 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
-PLAYER_TRACKING = EXPERIMENT_DIR.parent / "player-tracking"
-if str(PLAYER_TRACKING) not in sys.path:
-    sys.path.insert(0, str(PLAYER_TRACKING))
-
-import perspective as court
-
 from .analyzers import create_analyzer
 from .contract import NOT_VISIBLE, zone_from_feet
 from .corners import entry_for, load_registry, scale_corners
@@ -31,22 +24,17 @@ from .frames import DEFAULT_FPS, extract_frames
 from .labels import default_labels_path, load_labels
 from .metrics import match_labels, score_rows
 
+EXPERIMENT_DIR = Path(__file__).resolve().parents[1]
+PLAYER_TRACKING = EXPERIMENT_DIR.parent / "player-tracking"
+if str(PLAYER_TRACKING) not in sys.path:
+    sys.path.insert(0, str(PLAYER_TRACKING))
+
+import perspective as court  # noqa: E402
+
 RESULT_COLUMNS = [
-    "clip",
-    "analyzer",
-    "model_id",
-    "frame_index",
-    "source_frame_index",
-    "time_s",
-    "x_px",
-    "y_px",
-    "x_ft",
-    "y_ft",
-    "zone",
-    "label_zone",
-    "label_x_ft",
-    "label_y_ft",
-    "position_error_ft",
+    "clip", "analyzer", "model_id", "frame_index", "source_frame_index", "time_s",
+    "x_px", "y_px", "x_ft", "y_ft", "zone",
+    "label_zone", "label_x_ft", "label_y_ft", "position_error_ft",
 ]
 
 
@@ -82,32 +70,25 @@ def project_rows(video_name, analyzer, frames, points, corners_px, labeled):
             y_ft = float(mapped[1])
             zone = zone_from_feet(x_ft, y_ft)
         error = None
-        if (
-            label is not None
-            and label.x_ft is not None
-            and label.y_ft is not None
-            and x_ft is not None
-        ):
+        if label is not None and label.x_ft is not None and label.y_ft is not None and x_ft is not None:
             error = ((x_ft - label.x_ft) ** 2 + (y_ft - label.y_ft) ** 2) ** 0.5
-        rows.append(
-            {
-                "clip": video_name,
-                "analyzer": analyzer.kind,
-                "model_id": analyzer.model_id,
-                "frame_index": frame.index,
-                "source_frame_index": frame.source_frame_index,
-                "time_s": frame.time_s,
-                "x_px": x_px,
-                "y_px": y_px,
-                "x_ft": x_ft,
-                "y_ft": y_ft,
-                "zone": zone,
-                "label_zone": "" if label is None else label.zone,
-                "label_x_ft": None if label is None else label.x_ft,
-                "label_y_ft": None if label is None else label.y_ft,
-                "position_error_ft": error,
-            }
-        )
+        rows.append({
+            "clip": video_name,
+            "analyzer": analyzer.kind,
+            "model_id": analyzer.model_id,
+            "frame_index": frame.index,
+            "source_frame_index": frame.source_frame_index,
+            "time_s": frame.time_s,
+            "x_px": x_px,
+            "y_px": y_px,
+            "x_ft": x_ft,
+            "y_ft": y_ft,
+            "zone": zone,
+            "label_zone": "" if label is None else label.zone,
+            "label_x_ft": None if label is None else label.x_ft,
+            "label_y_ft": None if label is None else label.y_ft,
+            "position_error_ft": error,
+        })
     return rows
 
 
@@ -203,16 +184,12 @@ def run_harness(
             json.dumps(provenance(), indent=2, allow_nan=False) + "\n",
             encoding="utf-8",
         )
-    (run_dir / "summary.json").write_text(
-        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
-    )
+    (run_dir / "summary.json").write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
     return RunOutcome(run_dir, rows, score)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Project one model's player points onto the court and score them."
-    )
+    parser = argparse.ArgumentParser(description="Project one model's player points onto the court and score them.")
     parser.add_argument("clip", help="path to the test video")
     parser.add_argument("--analyzer", required=True, help="fake or yolo[:yolo26n-pose]")
     parser.add_argument(
@@ -226,28 +203,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--stop-frame", type=int, default=None, help="exclusive source frame limit"
     )
     parser.add_argument("--corners", required=True, help="corner registry JSON")
-    parser.add_argument(
-        "--labels",
-        default=None,
-        help="labels CSV; default is <clip>.labels.csv beside the clip when that file exists",
-    )
-    parser.add_argument(
-        "--fps",
-        type=float,
-        default=DEFAULT_FPS,
-        help="frames sampled per second (default 1)",
-    )
-    parser.add_argument(
-        "--long-side",
-        type=int,
-        default=None,
-        help="resize the long side to this many pixels; default keeps the video size",
-    )
-    parser.add_argument(
-        "--output",
-        default=None,
-        help="output root (default experiments/vlm-harness/output)",
-    )
+    parser.add_argument("--labels", default=None, help="labels CSV; default is <clip>.labels.csv beside the clip when that file exists")
+    parser.add_argument("--fps", type=float, default=DEFAULT_FPS, help="frames sampled per second (default 1)")
+    parser.add_argument("--long-side", type=int, default=None, help="resize the long side to this many pixels; default keeps the video size")
+    parser.add_argument("--output", default=None, help="output root (default experiments/vlm-harness/output)")
     return parser
 
 
@@ -272,16 +231,8 @@ def main(argv=None) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     score = outcome.score
-    zone = (
-        "n/a"
-        if score.zone_accuracy is None
-        else f"{score.zone_accuracy:.3f} ({score.n_zone_labeled})"
-    )
-    mean = (
-        "n/a"
-        if score.position_error_mean_ft is None
-        else f"{score.position_error_mean_ft:.3f} ft"
-    )
+    zone = "n/a" if score.zone_accuracy is None else f"{score.zone_accuracy:.3f} ({score.n_zone_labeled})"
+    mean = "n/a" if score.position_error_mean_ft is None else f"{score.position_error_mean_ft:.3f} ft"
     print(f"zone accuracy {zone}")
     print(f"position error mean {mean}; missing {score.n_position_missing}")
     print(f"wrote {outcome.run_dir}")
