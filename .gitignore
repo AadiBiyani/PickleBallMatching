@@ -1,8 +1,31 @@
-# Local recordings and pretrained weights are never source files.
+# Installed environments and packages
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+.pytest_cache/
+
+# Evaluation clips, saved corners for those clips, and generated runs
+experiments/vlm-harness/data/
+experiments/vlm-harness/output/
+output/
+
+# Downloaded weights and local recordings
+experiments/player-tracking/models/
+experiments/player-tracking/output/
 *.mp4
 *.mov
+*.MOV
 *.avi
 *.mkv
 *.webm
+*.task
 *.pt
+*.pth
+
+# Secrets and OS files
+.env
 .DS_Store
