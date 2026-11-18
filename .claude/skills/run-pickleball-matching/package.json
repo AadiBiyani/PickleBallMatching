@@ -1,0 +1,9 @@
+{
+  "name": "run-pickleball-matching-driver",
+  "private": true,
+  "type": "module",
+  "description": "Headless-Chrome driver for the prototype; see SKILL.md",
+  "dependencies": {
+    "playwright-core": "^1.50.0"
+  }
+}
