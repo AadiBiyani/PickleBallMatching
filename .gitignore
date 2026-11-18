@@ -1,0 +1,8 @@
+# Local recordings and pretrained weights are never source files.
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.pt
+.DS_Store
