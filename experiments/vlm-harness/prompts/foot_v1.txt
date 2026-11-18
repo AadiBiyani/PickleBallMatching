@@ -1,0 +1,5 @@
+Point to where the player's feet meet the court in this image.
+
+The origin is the top-left corner. x grows to the right and y grows down, in pixels of this frame. If the feet are not visible, leave both coordinates empty.
+
+This prompt is for a later model adapter. The harness on this branch does not call a vision-language model.
