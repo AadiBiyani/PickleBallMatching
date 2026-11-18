@@ -6,6 +6,7 @@ import { Button, Card, Label, LoadState, Notice, Screen } from '@/components/ui'
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 import { colors, radius, space, type } from '@/lib/theme';
+import type { Clip } from '@/lib/types';
 import { uploadSession } from '@/lib/upload';
 
 function Radio({ on }: { on: boolean }) {
@@ -34,13 +35,21 @@ export default function ChooseModel() {
 
   const model = models.data?.find((m) => m.id === modelId);
   const clip = clips.data?.find((c) => c.id === clipId);
-  const clipAllowed = !!clip && !(model?.requires_clip_file && clip.synthetic);
+  // Only pixel-based (harness-style) models need saved corners; court models report feet themselves.
+  const blockReason = (c: Clip) =>
+    model?.output_space === 'image' && !c.has_corners
+      ? 'This model reports pixels and needs the clip\'s court corners. Add them to backend/sample_clips/corners.json.'
+      : model?.requires_clip_file && c.synthetic
+        ? 'This model needs a real video. Add one to backend/sample_clips.'
+        : undefined;
+  const clipAllowed = !!clip && !blockReason(clip);
 
   useEffect(() => {
     if (!modelId && models.data?.length) setModelId(models.data[0].id);
   }, [models.data, modelId]);
   useEffect(() => {
-    if (!clipId && clips.data?.length) setClipId((clips.data.find((c) => !c.synthetic) ?? clips.data[0]).id);
+    if (!clipId && clips.data?.length)
+      setClipId((clips.data.find((c) => !c.synthetic) ?? clips.data[0]).id);
   }, [clips.data, clipId]);
 
   const upload = async () => {
@@ -92,6 +101,11 @@ export default function ChooseModel() {
                     </Text>
                     <Text style={type.small}>{m.owner}</Text>
                     <Text style={type.small}>{m.description}</Text>
+                    {m.is_remote && (
+                      <Text style={[type.small, { color: colors.warning, fontWeight: '600' }]}>
+                        Sends frames to an outside service. Only use clips whose participants agreed (SYS-08).
+                      </Text>
+                    )}
                   </View>
                 </Card>
               </Pressable>
@@ -108,7 +122,8 @@ export default function ChooseModel() {
           </Text>
           <View style={{ gap: space.sm }}>
             {clips.data.map((c) => {
-              const blocked = !!model?.requires_clip_file && c.synthetic;
+              const reason = blockReason(c);
+              const blocked = !!reason;
               return (
                 <Pressable
                   key={c.id}
@@ -122,11 +137,10 @@ export default function ChooseModel() {
                     <View style={{ flex: 1 }}>
                       <Text style={[type.body, { fontWeight: '600' }]}>{c.name}</Text>
                       <Text style={type.small}>
-                        {c.synthetic
-                          ? blocked
-                            ? 'This model needs a real video. Add one to backend/sample_clips.'
-                            : 'No video; works with the simulated tracker'
-                          : `${c.size_mb} MB`}
+                        {reason ??
+                          (c.synthetic
+                            ? 'No video; works with the simulated tracker'
+                            : `${c.size_mb} MB${c.has_corners ? ' · corners saved' : ''}`)}
                       </Text>
                     </View>
                   </Card>

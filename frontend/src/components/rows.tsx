@@ -89,7 +89,7 @@ export function AttemptRow({
   let detail: string;
   if (attempt.flagged) detail = `Flagged: ${attempt.flag_reason}. Original result: ${OUTCOME_TEXT[attempt.outcome]}.`;
   else if (attempt.reason) detail = attempt.reason;
-  else detail = `Reached in ${attempt.travel_time_s} s · ${attempt.lateral_m} m lateral`;
+  else detail = `Reached in ${attempt.travel_time_s} s · ${attempt.lateral_ft} ft lateral`;
   const num = `#${String(attempt.number).padStart(2, '0')}`;
   return (
     <View style={styles.attempt}>

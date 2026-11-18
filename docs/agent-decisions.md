@@ -4,7 +4,7 @@ This is the running record of material design decisions made in human/agent conv
 
 Each entry records the date, related issue or pull request, the decision, alternatives considered, rationale, and known consequences. "Decided by" separates choices the human author made from ones the agent proposed and the author accepted.
 
-> **Status: DRAFT.** Entries AD-001 to AD-013 were drafted by the agent (Claude Code) from the session on the `logan/feature/no-issue-prototype-ui` branch. Logan must review, correct, and approve them before the pull request. Nothing here has been reviewed by the team yet.
+> **Status: DRAFT.** Entries AD-001 to AD-015 were drafted by the agent (Claude Code) from the session on the `logan/feature/no-issue-prototype-ui` branch. Logan must review, correct, and approve them before the pull request. Nothing here has been reviewed by the team yet.
 
 ---
 
@@ -73,6 +73,8 @@ Each entry records the date, related issue or pull request, the decision, altern
   - The selector screen will not ship in production.
 
 ### AD-005: Provisional court-coordinate convention for tracking output
+
+> **Superseded by AD-014.** The backend now uses the court evaluation harness's contract. This entry is kept as the record of the original decision.
 
 - **Date:** 2026-11-18
 - **Related:** `logan/feature/no-issue-prototype-ui`; FR-08, NFR-06
@@ -214,3 +216,52 @@ Each entry records the date, related issue or pull request, the decision, altern
   - Verified only on Windows PowerShell 5.1.
   - If CI adopts it, it should move to `tests/` (end-to-end) per `DEVELOPMENT.md`.
   - Running the smoke check exposed a real scenario bug (AD-010's exclusion cap), which is now fixed and covered by a backend regression test.
+
+### AD-014: Adopt the court evaluation harness's tracking contract (supersedes AD-005)
+
+- **Date:** 2026-11-18
+- **Related:** `logan/feature/no-issue-prototype-ui`; `nishaant/experiment/no-issue-court-eval-harness` (commit `72f6ca4`); FR-08, NFR-06, SYS-08
+- **Decided by:** Logan (human) chose to match the shared harness. The agent implemented the port.
+- **Decision:**
+  - The backend's vision interface is now the harness's: `locate(frames) -> LocatedPoint(frame_index, x_px, y_px)`, one image point per frame, or none.
+  - The backend, not the model, maps points to court feet using the clip's four saved corners. The feet frame has its origin at the far-left outside corner, with x running 0–20 ft and y running 0–44 ft toward the near baseline.
+  - The backend then derives the harness zone (`kitchen/transition/backcourt` × `left/right`, `out_of_court`, `not_visible`).
+  - Corners use the harness registry format (`corners.json`).
+  - `HarnessAnalyzer` registers any harness analyzer unchanged.
+  - `GET /api/sessions/{id}/track` returns rows in the harness's `results.csv` shape.
+  - Models declare `sample_fps` and `is_remote`. The app shows a consent warning for remote models.
+- **Alternatives considered:**
+  - Keep AD-005's metres convention and convert at the boundary.
+  - Import the harness code directly from `experiments/`, which `DEVELOPMENT.md` discourages for product code.
+  - Add OpenCV/NumPy to the API to reuse `perspective.py` as-is.
+- **Rationale:**
+  - Every vision branch (Nishaant's MediaPipe tracker, Liam's harness design notes, and the shared harness) already uses court feet with this origin.
+  - With one contract, a model scores identically in the harness and in the app.
+  - The pure-Python homography keeps the API's dependency set small.
+- **Consequences:**
+  - `app/court.py` is a copy of the harness's geometry. `tests/test_court.py` repeats the harness's zone and homography cases. A one-off comparison with `perspective.py` agreed to within 1e-5 ft for points on the court. The differences only grow, up to about 0.2 ft, for pixels far off the court near the horizon, because `perspective.py` casts corners to float32. When the harness graduates to `models/`, the backend should import from there instead.
+  - Real clips now need saved corners and OpenCV (`requirements-vision.txt`).
+  - The point used to locate a player (ankle midpoint, heel midpoint, or a point the model picks) is still not agreed, so position errors are not yet comparable across models.
+  - `ANALYSIS_VERSION` was bumped to `proto-0.2`.
+
+### AD-015: Feet as the default unit; models may report court feet directly
+
+- **Date:** 2026-11-18
+- **Related:** `logan/feature/no-issue-prototype-ui`; refines AD-014; FR-08, NFR-06
+- **Decided by:** Logan (human) said to expect the vision models to eventually default to feet. The agent implemented the backend support.
+- **Decision:**
+  - Feet are the unit for all positions and distances. The attempt field `lateral_m` became `lateral_ft`.
+  - Each model declares an `output_space`:
+    - `"court"` (the default): the model reports `x_ft`/`y_ft` itself, and no corners are needed in the backend.
+    - `"image"`: the model reports pixels, which the backend projects with the clip's saved corners as in AD-014.
+  - A `LocatedPoint` may carry pixels, feet, or both. Feet win when both are present.
+  - The backend always derives the zone.
+  - Harness analyzers default to `"image"` until they declare feet.
+  - The simulated model now reports feet.
+- **Alternatives considered:**
+  - Keep pixels as the only model output (AD-014 as written).
+  - Require every model to report feet now. Aadi's YOLO tracker and the shared harness currently report pixels.
+- **Rationale:** The team expects models to output court feet, as Nishaant's MediaPipe tracker already does. Supporting both forms keeps today's pixel-based harness analyzers working without blocking that move.
+- **Consequences:**
+  - A model that reports feet does its own court calibration, so its calibration error is not separable from its tracking error in the backend. The court evaluation harness scores only pixel models today and would need a matching option to score feet-reporting models fairly.
+  - NFR-06's 0.30 m target is about 0.98 ft.

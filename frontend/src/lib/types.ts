@@ -28,11 +28,18 @@ export interface Drill {
 
 export interface VisionModelInfo {
   id: string;
+  kind: string;
+  model_id: string;
   name: string;
   owner: string;
   version: string;
   description: string;
+  /** Frames leave this machine (e.g. Gemini); requires participant consent (SYS-08). */
+  is_remote: boolean;
   requires_clip_file: boolean;
+  sample_fps: number;
+  /** "court": reports court feet itself (expected default). "image": pixels, needs the clip's saved corners. */
+  output_space: 'court' | 'image';
 }
 
 export interface Clip {
@@ -40,6 +47,30 @@ export interface Clip {
   name: string;
   size_mb: number | null;
   synthetic: boolean;
+  /** Court corners saved for this clip; required before it can be analyzed. */
+  has_corners: boolean;
+}
+
+/** Court zones from the team's court evaluation harness (near half, left/right as seen in the image). */
+export type Zone =
+  | 'kitchen_left'
+  | 'kitchen_right'
+  | 'transition_left'
+  | 'transition_right'
+  | 'backcourt_left'
+  | 'backcourt_right'
+  | 'out_of_court'
+  | 'not_visible';
+
+/** One sampled frame, as in the harness's results.csv. Court feet: origin far-left outside corner, x 0-20, y 0-44. */
+export interface CourtPoint {
+  frame_index: number;
+  time_s: number;
+  x_px: number | null;
+  y_px: number | null;
+  x_ft: number | null;
+  y_ft: number | null;
+  zone: Zone;
 }
 
 export interface Session {
@@ -68,7 +99,7 @@ export interface Attempt {
   t_end_ms: number;
   travel_time_s: number | null;
   response_time_s: number | null;
-  lateral_m: number | null;
+  lateral_ft: number | null;
   flagged: boolean;
   flag_reason: string | null;
 }
@@ -106,7 +137,16 @@ export interface Results {
   exclusions: { invalid_feed: number; uncertain: number; flagged: number };
   limitations: string[];
   attempts: Attempt[];
-  track: { model_id: string; model_version: string; frames: number; missing_frames: number };
+  track: {
+    kind: string;
+    model_id: string;
+    model_version: string;
+    sample_fps: number;
+    frame_size_px: [number, number];
+    frames: number;
+    missing_frames: number;
+    zone_counts: Partial<Record<Zone, number>>;
+  };
 }
 
 export interface PublishedProfile {

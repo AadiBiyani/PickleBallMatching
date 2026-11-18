@@ -59,6 +59,31 @@ def test_only_insufficient_scenario_can_be_insufficient(scenario, drill_id):
         assert client.get(f"/api/sessions/{sid}/results").json()["sufficient"] is True
 
 
+def test_track_endpoint_returns_harness_rows():
+    sid = _create()
+    assert client.get(f"/api/sessions/{sid}/track").status_code == 409  # not analyzed yet
+    _upload(sid)
+    rows = client.get(f"/api/sessions/{sid}/track").json()
+    summary = client.get(f"/api/sessions/{sid}/results").json()["track"]
+    assert len(rows) == summary["frames"] == 600  # 20 feeds x 3 s x 10 fps
+    assert set(rows[0]) == {"frame_index", "time_s", "x_px", "y_px", "x_ft", "y_ft", "zone"}
+    assert summary["missing_frames"] == sum(r["zone"] == "not_visible" for r in rows)
+    assert sum(summary["zone_counts"].values()) == 600
+
+
+def test_models_report_harness_fields():
+    m = client.get("/api/models").json()[0]
+    assert {"kind", "model_id", "is_remote", "sample_fps", "output_space"} <= set(m)
+    assert m["output_space"] == "court"  # the simulated model reports feet, the expected default
+
+
+def test_distances_are_in_feet():
+    sid = _create()
+    _upload(sid)
+    attempt = client.get(f"/api/sessions/{sid}/results").json()["attempts"][0]
+    assert "lateral_ft" in attempt and "lateral_m" not in attempt
+
+
 def test_upload_error_then_retry_uses_same_session():
     sid = _create("upload_error")
     assert _upload(sid).status_code == 503

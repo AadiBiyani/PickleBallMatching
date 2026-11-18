@@ -40,11 +40,18 @@ class Drill(BaseModel):
 
 class VisionModelInfo(BaseModel):
     id: str
+    kind: str
+    model_id: str
     name: str
     owner: str
     version: str
     description: str
+    is_remote: bool  # frames leave this machine; needs participant consent (SYS-08)
     requires_clip_file: bool
+    sample_fps: float
+    # "court": the model reports court feet itself (expected default); "image": pixels
+    # the backend projects with the clip's saved corners (court evaluation harness style).
+    output_space: Literal["court", "image"]
 
 
 class Clip(BaseModel):
@@ -52,33 +59,47 @@ class Clip(BaseModel):
     name: str
     size_mb: float | None = None
     synthetic: bool = False
+    has_corners: bool = False  # court corners saved in sample_clips/corners.json
 
 
 # ---- Vision output (FR-08) -------------------------------------------------
-# Court coordinates in metres. Origin: the assessed player's baseline, left
-# sideline as seen from behind the baseline. x runs along the baseline
-# (0-6.10 m), y runs toward the net (0-6.71 m). Provisional: the vision team
-# must confirm this convention and the definition of "ground position".
+# Rows match the team's court evaluation harness (results.csv columns). Feet are
+# the project's unit: COURT FEET have origin at the far-left outside corner,
+# x 0-20 toward the right sideline, y 0-44 toward the near baseline. A model
+# reports either feet directly or an image point the pipeline projects with the
+# clip's saved corners; the zone is always derived here. See app/court.py.
+
+Zone = Literal[
+    "kitchen_left",
+    "kitchen_right",
+    "transition_left",
+    "transition_right",
+    "backcourt_left",
+    "backcourt_right",
+    "out_of_court",
+    "not_visible",
+]
 
 
-class TrackPoint(BaseModel):
-    t_ms: int
-    x_m: float | None  # None when the player was not detected in this frame
-    y_m: float | None
-    confidence: float
-
-
-class TrackResult(BaseModel):
-    model_id: str
-    model_version: str
-    points: list[TrackPoint]
+class CourtPoint(BaseModel):
+    frame_index: int
+    time_s: float
+    x_px: float | None  # None when the player was not visible in this frame
+    y_px: float | None
+    x_ft: float | None
+    y_ft: float | None
+    zone: Zone
 
 
 class TrackSummary(BaseModel):
+    kind: str
     model_id: str
     model_version: str
+    sample_fps: float
+    frame_size_px: tuple[int, int]
     frames: int
-    missing_frames: int
+    missing_frames: int  # frames with no player point (zone "not_visible")
+    zone_counts: dict[str, int]
 
 
 # ---- Attempts and results (FR-09 - FR-12) ---------------------------------
@@ -93,7 +114,7 @@ class Attempt(BaseModel):
     t_end_ms: int
     travel_time_s: float | None = None
     response_time_s: float | None = None
-    lateral_m: float | None = None
+    lateral_ft: float | None = None
     flagged: bool = False
     flag_reason: str | None = None
 

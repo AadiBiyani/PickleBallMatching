@@ -1,5 +1,6 @@
 import type {
   Clip,
+  CourtPoint,
   Drill,
   FeedMethod,
   PublishedProfile,
@@ -62,6 +63,7 @@ export const api = {
   upload: (id: string, body: { model_id: string; clip_id: string }) =>
     request<Session>(`/api/sessions/${id}/upload`, { method: 'POST', body }),
   results: (id: string) => request<Results>(`/api/sessions/${id}/results`),
+  track: (id: string) => request<CourtPoint[]>(`/api/sessions/${id}/track`),
   flag: (id: string, number: number, reason: string) =>
     request<Results>(`/api/sessions/${id}/attempts/${number}/flag`, { method: 'POST', body: { reason } }),
   publish: (id: string) => request<PublishedProfile>(`/api/sessions/${id}/publish`, { method: 'POST' }),

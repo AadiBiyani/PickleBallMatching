@@ -1,0 +1,10 @@
+{
+  "videos": {
+    "drill.mp4": {
+      "width": 1920,
+      "height": 1080,
+      "corner_order": ["far-left", "far-right", "near-right", "near-left"],
+      "corners_px": [[420.0, 180.0], [1500.0, 180.0], [1760.0, 980.0], [160.0, 980.0]]
+    }
+  }
+}

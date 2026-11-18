@@ -15,6 +15,7 @@ from . import clips, pipeline
 from .drills import DRILLS, get_drill
 from .schemas import (
     Clip,
+    CourtPoint,
     CreateSessionRequest,
     DebugSessionRequest,
     Drill,
@@ -107,6 +108,10 @@ def upload(session_id: str, req: UploadRequest, background: BackgroundTasks) -> 
         clip, path = resolved
         if model.requires_clip_file and path is None:
             raise HTTPException(400, f"{model.name} needs a real video clip, not the synthetic one.")
+        if model.output_space == "image" and not clip.has_corners:
+            raise HTTPException(
+                400, f"No court corners are saved for {clip.name}. Add them to sample_clips/corners.json."
+            )
         s = store.update(session_id, upload_attempts=s.upload_attempts + 1)
         if s.scenario == "upload_error" and s.upload_attempts == 1:
             raise HTTPException(
@@ -124,6 +129,15 @@ def get_results(session_id: str) -> Results:
     if s.status != "completed":
         raise HTTPException(409, f"Results are not ready (status: {s.status}).")
     return pipeline.build_results(session_id)
+
+
+@app.get("/api/sessions/{session_id}/track")
+def get_track(session_id: str) -> list[CourtPoint]:
+    """Per-frame player points in the court evaluation harness's results.csv shape (FR-08)."""
+    s = _session_or_404(session_id)
+    if s.status != "completed":
+        raise HTTPException(409, f"Tracking is not ready (status: {s.status}).")
+    return store.track_points.get(session_id, [])
 
 
 @app.post("/api/sessions/{session_id}/attempts/{number}/flag")

@@ -2,7 +2,7 @@
 
 import threading
 
-from .schemas import Attempt, PublishedProfile, Session, TrackSummary
+from .schemas import Attempt, CourtPoint, PublishedProfile, Session, TrackSummary
 
 DEMO_PLAYER_ID = "demo-player"  # no auth in the prototype; one player owns everything
 
@@ -17,6 +17,8 @@ class Store:
             self.sessions: dict[str, Session] = {}
             self.attempts: dict[str, list[Attempt]] = {}
             self.tracks: dict[str, TrackSummary] = {}
+            # Per-frame court points, in the harness's results.csv shape.
+            self.track_points: dict[str, list[CourtPoint]] = {}
             # Published profile versions per player, oldest first (FR-15).
             self.profiles: dict[str, list[PublishedProfile]] = {}
 

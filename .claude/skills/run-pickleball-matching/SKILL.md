@@ -72,7 +72,7 @@ cd backend; .\.venv\Scripts\python.exe -m pytest -q; cd ..
 cd frontend; npx tsc --noEmit; cd ..
 ```
 
-Expected: `17 passed, 1 warning` (the warning is a Starlette/httpx deprecation, harmless), and tsc exits 0.
+Expected: `34 passed, 1 warning` (the warning is a Starlette/httpx deprecation, harmless), and tsc exits 0.
 
 ## Gotchas
 
