@@ -1,4 +1,4 @@
-"""A neutral export boundary; no assumed compatibility with another framework."""
+"""Full tracking exports consumed by the browser and shared harness adapter."""
 
 import csv
 import json
@@ -75,7 +75,7 @@ def sample_validation_rows(
 ):
     """Sample only AFTER continuous tracking; keep missing rows and unmatched requests.
 
-    This is a neutral nearest-timestamp adapter, not Liam's unprovided schema.
+    This utility serves timestamp consumers; the shared harness uses exact frame indices.
     Ties resolve to the earlier timestamp. Rows are never interpolated.
     """
     import math

@@ -1,4 +1,4 @@
-"""Proposed internal contract; not yet Liam's validation-framework contract."""
+"""Internal YOLO export contract; the shared harness adapts it to LocatedPoint."""
 
 from dataclasses import dataclass
 from typing import Literal

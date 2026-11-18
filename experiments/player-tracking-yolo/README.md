@@ -44,9 +44,9 @@ uv run player-tracker run ../../"Screen Recording 2026-11-16 175406 (1).mp4" \
 
 This command is provided for reproduction; the recorded four-player run was performed through the actual browser/API flow below. Paths and boxes are specific to the supplied file. Do not reuse its boxes for another recording.
 
-## Output and Liam's integration boundary
+## Output and shared-harness integration
 
-Schema **1.1 is proposed internally, not approved by Liam**. See `contracts.py` and `exports.py`. Each run produces:
+Schema **1.1 is the YOLO experiment's internal export**. The [shared harness adapter](../vlm-harness/README.md#evaluate-a-yolo-tracking-run) translates it to `LocatedPoint`; team review of this integration remains pending. See `contracts.py` and `exports.py`. Each run produces:
 
 - `positions.json`: metadata plus `frames`, a flat list containing **one observation for every selected player on every processed frame**, including missing positions. Key observations by `(frame_index, player_id)`.
 - `positions.csv`: the same observations; bounding boxes flattened to `bbox_x1`, `bbox_y1`, `bbox_x2`, `bbox_y2`. Missing values are empty CSV fields, JSON `null`.
@@ -60,7 +60,7 @@ Each observation includes `player_id`, `frame_index`, `timestamp_s`, `selected_t
 
 Statuses are `ok`, `target_not_detected`, or `keypoints_unreliable`. First-frame selection requires IoU ≥0.5 with the best tracked box and a lead greater than 0.1 over the second-best box. Duplicate selections mapping to one ID fail. IDs then remain locked; new IDs are not silently accepted as the same person. Stable IDs are not identity ground truth.
 
-Frames are tracked continuously with stride 1. Monotonic nonnegative OpenCV decoder timestamps are used when available; otherwise **all** timestamps in the run use frame index/FPS and metadata records the CFR assumption. FPS is validated. Variable-frame-rate accuracy is not validated on the supplied clips. `sample_validation_rows` samples afterward by nearest timestamp with an explicit tolerance and player ID for multi-player results; it preserves missing/unmatched results and never interpolates. This is an adapter boundary, not a replacement for Liam's framework.
+Frames are tracked continuously with stride 1. Monotonic nonnegative OpenCV decoder timestamps are used when available; otherwise **all** timestamps use frame index/FPS and metadata records the CFR assumption. Variable-frame-rate accuracy is unvalidated. The shared harness samples by **exact source frame index**, selects an explicit player, validates source identity/window, and rescales image coordinates if needed. Homography and zone assignment remain in the shared code. `sample_validation_rows` remains available for timestamp consumers, with explicit tolerance and no interpolation.
 
 Fatal errors are job-level failures. Saved partial runs have `complete=false` and remain downloadable. No invented rows are added after a fatal failure. Model loading (including first lazy imports), processing (decode/inference/JPEG writes), and total-before-final-export are separately described in metadata; the initial weight download is outside those run timings.
 
@@ -104,7 +104,7 @@ Playwright is an optional development dependency, not part of the application ru
 
 On the supplied 1920×1080, 30 FPS broadcast screen recording, the first single-player CPU check processed frames 0–299 with 300 usable estimates in 11.57 seconds of processing. The later four-player browser check processed frames 600–889 in 11.21 seconds, producing 1,160 observations: **612 usable and 548 missing**. Both near-side players had 290/290 usable estimates; both far-side players had 16/290, then lost their original IDs. Later overlays show new IDs on those far-side players. This is a real limitation of the tested configuration, not proof that those people left the image.
 
-The two windows belong to the same source recording. They are separate smoke-check segments, **not independent held-out evaluation data**. The longer supplied recording was inspected for metadata and its opening frame, not processed end to end. No manually labeled reference set was supplied, so image error, physical accuracy, and a comprehensive identity-switch rate remain unmeasured. No court calibration, coverage, attempt scoring, ball tracking, training, re-identification, matching, production persistence, or Figma matching is claimed.
+The two windows belong to the same source recording. They are smoke checks, **not independent held-out evaluation data**. The longer recording was inspected, not processed end to end. Without reference labels, image error, physical accuracy and comprehensive identity-switch rate remain unmeasured. Shared court projection is now connected through the harness; its real-video smoke check uses explicitly approximate corners. Coverage, attempt scoring, ball tracking, training, re-identification, matching, production persistence and Figma matching remain outside this experiment.
 
 Full evidence, versions, limitations and the team checklist: [`../../doc/yolo-player-tracking.md`](../../doc/yolo-player-tracking.md).
 
@@ -113,6 +113,8 @@ Full evidence, versions, limitations and the team checklist: [`../../doc/yolo-pl
 Exact versions and hashes for dependencies are in `uv.lock`; the validated environment used Python 3.12.15, Ultralytics 8.4.215, PyTorch 2.15.0, OpenCV 5.1.0.95, NumPy 2.5.5, FastAPI 0.163.2, Pydantic 2.14.3, Uvicorn 0.54.0, lap 0.5.14, pytest 9.2.0, and Ruff 0.17.5. Browser validation used Playwright 1.65.2 and Chromium build 1255.
 
 Official weights: https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n-pose.pt
+
+Exact model: **Ultralytics YOLO26n-pose**, the nano pose model pretrained on COCO keypoints, with no fine-tuning here. Official documentation: [YOLO26 overview](https://docs.ultralytics.com/models/yolo26/), [pose](https://docs.ultralytics.com/tasks/pose/), [tracking](https://docs.ultralytics.com/modes/track/), and [architecture YAML at installed v8.4.215](https://github.com/ultralytics/ultralytics/blob/v8.4.215/ultralytics/cfg/models/26/yolo26-pose.yaml). We explicitly supply ByteTrack configuration, retain tracker state across consecutive frames, and use ankle keypoints 15/16 from the 17-keypoint output. Defaults remain CPU, image size 640, detection confidence 0.1 and ankle confidence 0.5.
 
 Observed SHA-256: `eb3bb8268828aeaf515cec23a4bfafd793944a86fe9af94ba7823609c14522a9`.
 

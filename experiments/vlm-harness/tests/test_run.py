@@ -8,7 +8,9 @@ import cv2
 import numpy as np
 import pytest
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "player-tracking"))
+sys.path.insert(
+    0, os.path.join(os.path.dirname(__file__), "..", "..", "player-tracking")
+)
 
 import perspective as court
 
@@ -22,7 +24,9 @@ CORNERS = [[80.0, 40.0], [560.0, 40.0], [560.0, 440.0], [80.0, 440.0]]
 
 
 def _write_clip(path):
-    writer = cv2.VideoWriter(path, cv2.VideoWriter_fourcc(*"mp4v"), 10.0, (WIDTH, HEIGHT))
+    writer = cv2.VideoWriter(
+        path, cv2.VideoWriter_fourcc(*"mp4v"), 10.0, (WIDTH, HEIGHT)
+    )
     assert writer.isOpened()
     frame = np.zeros((HEIGHT, WIDTH, 3), dtype=np.uint8)
     for _ in range(2):
@@ -31,11 +35,14 @@ def _write_clip(path):
 
 
 def _registry(path):
-    import json
     import mark_corners
 
     saved = mark_corners.upsert_clip(
-        mark_corners.empty_registry(), "clip.mp4", WIDTH, HEIGHT, CORNERS,
+        mark_corners.empty_registry(),
+        "clip.mp4",
+        WIDTH,
+        HEIGHT,
+        CORNERS,
     )
     mark_corners.save_registry(path, saved)
 
@@ -52,15 +59,18 @@ def test_null_point_stays_blank_and_the_next_frame_is_scored(tmp_path):
     _registry(corners)
     labels = tmp_path / "clip.labels.csv"
     labels.write_text(
-        "time_s,zone,x_ft,y_ft\n"
-        "0.0,kitchen_left,5.0,25.0\n"
-        "0.1,kitchen_left,5.0,25.0\n"
+        "time_s,zone,x_ft,y_ft\n0.0,kitchen_left,5.0,25.0\n0.1,kitchen_left,5.0,25.0\n"
     )
     pixel = _court_pixel()
     analyzer = FakeAnalyzer(points={0: None, 1: (float(pixel[0]), float(pixel[1]))})
 
     outcome = run_harness(
-        video, analyzer, corners, labels_path=labels, fps=10.0, output_root=tmp_path / "out",
+        video,
+        analyzer,
+        corners,
+        labels_path=labels,
+        fps=10.0,
+        output_root=tmp_path / "out",
     )
 
     assert [row["zone"] for row in outcome.rows] == ["not_visible", "kitchen_left"]
@@ -85,4 +95,4 @@ def test_null_point_stays_blank_and_the_next_frame_is_scored(tmp_path):
 
 def test_unknown_analyzer_is_refused():
     with pytest.raises(ValueError, match="unknown analyzer"):
-        create_analyzer("yolo")
+        create_analyzer("unknown-model")

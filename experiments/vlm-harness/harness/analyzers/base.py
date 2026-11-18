@@ -6,7 +6,8 @@ court corners. A model pull request adds one module and one entry in _FACTORIES.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
+from pathlib import Path
 from typing import Protocol
 
 from ..contract import LocatedPoint
@@ -23,22 +24,44 @@ class Analyzer(Protocol):
         ...
 
 
-def _make_fake(model: str) -> Analyzer:
+def _make_fake(model: str, **options) -> Analyzer:
     from .fake import FakeAnalyzer
 
+    if (
+        options.get("positions_path") is not None
+        or options.get("player_id") is not None
+    ):
+        raise ValueError("--positions and --player-id apply only to the yolo analyzer")
     return FakeAnalyzer(model)
 
 
-_FACTORIES: dict[str, Callable[[str], Analyzer]] = {
+def _make_yolo(model: str, **options) -> Analyzer:
+    # Optional integration: fake/other models do not import the YOLO package.
+    from .yolo import YoloAnalyzer
+
+    return YoloAnalyzer(model_id=model, **options)
+
+
+_FACTORIES = {
     "fake": _make_fake,
+    "yolo": _make_yolo,
 }
 
 
-def create_analyzer(spec: str) -> Analyzer:
-    """Build an analyzer from 'kind' or 'kind:model'. Only fake is registered here."""
+def create_analyzer(
+    spec: str,
+    *,
+    positions_path: str | Path | None = None,
+    player_id: str | None = None,
+) -> Analyzer:
+    """Build an analyzer; YOLO consumes a completed continuous tracking export."""
     kind, _, model = spec.partition(":")
     kind = kind.strip().lower()
     if kind not in _FACTORIES:
         known = ", ".join(sorted(_FACTORIES))
         raise ValueError(f"unknown analyzer {kind!r} in {spec!r}; choose from {known}")
-    return _FACTORIES[kind](model.strip())
+    return _FACTORIES[kind](
+        model.strip(),
+        positions_path=positions_path,
+        player_id=player_id,
+    )

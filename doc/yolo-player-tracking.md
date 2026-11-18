@@ -4,7 +4,7 @@
 
 Source brief: `Player_Tracking_Context.md`; inspected alongside `AGENTS.md` and the project proposal/development plan. Starting branch was `main`, with no application code. Work is isolated on `aadi-yolo-player-tracking`, under `experiments/player-tracking-yolo/`; existing context and videos are preserved.
 
-The user confirmed YOLO pose + ByteTrack as their model assignment. Nishaant's MediaPipe approach addresses the same tracking task; Liam owns the shared validation framework. Liam's contract and the team's Figma screens have not been supplied. Integration and Figma alignment remain pending.
+The user confirmed YOLO pose + ByteTrack as their model assignment. Nishaant's MediaPipe approach addresses the same tracking task; Liam owns the shared validation framework. At the original implementation, the shared contract and Figma screens had not been supplied. The original evidence below records that stage; see the dated integration update for current shared-harness support.
 
 1. Establish Python 3.12, pretrained YOLO26n pose, explicit ByteTrack, and a CLI run on supplied video.
 2. Add explicit preview-box selection, persistent selected ID, ankle-midpoint positions, per-frame missing states, and JSON/CSV/annotations.
@@ -99,9 +99,9 @@ Use the README's exact setup/CLI/test/browser commands to reproduce. No IDE-agen
 
 ## Liam handoff and remaining work
 
-The proposed schema 1.1 keys observations by `(frame_index, player_id)`, with tracker IDs separate. The manifest has one entry per image; positions have one entry per player/frame. Preserve null/empty missing values and `complete=false` runs. Hashes, settings, FPS, stride, timestamps and reference-point metadata support comparison. `sample_validation_rows(..., player_id=...)` samples after tracking using explicit tolerance, retaining missing/unmatched results. No compatibility with Liam's unknown contract is asserted.
+The internal schema 1.1 keys observations by `(frame_index, player_id)`, with tracker IDs separate. The manifest has one entry per image; positions have one entry per player/frame. Preserve null/empty missing values and `complete=false` runs. Hashes, settings, FPS, stride, timestamps and reference-point metadata support comparison. `sample_validation_rows(..., player_id=...)` remains available for timestamp consumers. The new shared-harness adapter uses exact source frame indices instead; see the dated update below.
 
-Before accuracy reporting: obtain Liam's contract; agree ankle midpoint versus MediaPipe heels/ground-contact definitions; collect approximately 20–30 matching manual reference points plus identity labels; use independent drill footage/setups; report error on usable labeled frames alongside missing/wrong-player counts. No physical-accuracy target, comprehensive identity-switch rate or labeled image error was measured. Far-side ID fragmentation needs investigation on development footage, followed by a fresh independent check. Court mapping, re-identification, ball tracking, training and production integration remain outside this prototype.
+Before accuracy reporting: review the adapter against the team's shared contract; agree ankle midpoint versus heels/ground-contact definitions; collect matching manual reference points and identity labels; use independent drill footage/setups; report error alongside missing/wrong-player counts. No physical-accuracy target, comprehensive identity-switch rate or labeled image error was measured. Far-side ID fragmentation needs investigation and an independent check. Shared court mapping is now connected; re-identification, ball tracking, training and production integration remain separate work.
 
 ## Team completion checklist
 
@@ -124,3 +124,57 @@ Suggested GenAI statement: “I used Codex to inspect the project context, devel
 - https://github.com/ultralytics/ultralytics/blob/main/ultralytics/cfg/trackers/bytetrack.yaml
 - https://playwright.dev/python/docs/input
 - https://playwright.dev/python/docs/downloads
+
+## Shared-harness integration — 2026-11-18
+
+**Plan and acceptance:** bring the shared harness from `main` onto the existing YOLO branch; adapt continuous tracking exports to its image-point contract; keep homography and zones in the shared modules; verify explicit player/window selection, scaling, missing observations, source identity and output provenance; rerun existing checks and a real-video smoke test. Shared UI work stays with Logan. No model training or tracker changes were needed.
+
+**Git:** fetched `origin/main` at `e22f8e5` (PR #2). The merge had one add/add conflict in `.gitignore`; combined both sets of ignore rules, retaining `.webm`. Merge commit `9904f72` completed on `aadi-yolo-player-tracking`. `git merge-base --is-ancestor origin/main HEAD` passed. This is a local synchronization merge; the integration edits remain uncommitted and nothing was pushed. The pre-existing untracked `Player_Tracking_Context.md` was preserved.
+
+**Implementation:** `harness/analyzers/yolo.py` reads complete schema-1.1 exports, checks source SHA-256/dimensions/model and observation consistency, and requires a player ID. Sampling now retains original source frame indices and supports an explicit `[start_frame, stop_frame)` window. Points are scaled to the harness image size and handed to existing geometry/zone functions. Missing estimates stay null. `analyzer.json` retains tracking metadata and sampled statuses/reasons; the summary preserves calibration annotations. Output directories include unique suffixes. The factory/CLI now accept `yolo:yolo26n-pose`, `--positions`, `--player-id`, `--start-frame`, and `--stop-frame`.
+
+**Decisions:** exact source indices replace nearest-timestamp matching in this adapter; no interpolation or implicit evaluation of unprocessed footage. The OpenCV distribution and pytest range were aligned with the existing locked YOLO environment without adding a library. The old process proposal now references the adopted `docs/DEVELOPMENT.md`. See [agent-decisions.md](../docs/agent-decisions.md) for alternatives and consequences.
+
+### Actual local verification
+
+Commands below run from the directory stated. No model download or network access is needed by the automated tests.
+
+| Directory | Command | Observed result |
+| --- | --- | --- |
+| YOLO experiment | `.venv/bin/python -m pytest -q` | 37 passed; one existing Starlette/httpx deprecation warning |
+| Shared harness | `../player-tracking-yolo/.venv/bin/python -m pytest -q` | 33 passed, including 26 new adapter/sampling cases; no skips |
+| YOLO experiment | `.venv/bin/ruff check .` | Passed |
+| YOLO experiment | `.venv/bin/ruff format --check --quiet .` | Passed |
+| Shared harness | `../player-tracking-yolo/.venv/bin/ruff check harness/analyzers/base.py harness/analyzers/yolo.py harness/frames.py harness/run.py tests/test_yolo.py tests/test_run.py` | Passed on all touched Python files |
+| Shared harness | Same paths with `ruff format --check --quiet` | Passed |
+| Repository root | `experiments/player-tracking-yolo/.venv/bin/python -m compileall -q experiments/player-tracking-yolo/player_tracking experiments/vlm-harness/harness` | Passed |
+| Repository root | `git diff --check` | Passed |
+
+The new tests use independently constructed synthetic coordinates: `(50, 250)` image pixels on a 200×440 rectangular court maps to `(5, 25)` feet / `kitchen_left`; a second explicit player maps to `(15, 40)` / `backcourt_right`. They check original versus sampled indices, resizing, both missing statuses, unavailable accuracy without labels, wrong video/player/model, incomplete or inconsistent exports, duplicates, bad/null/nonfinite coordinates, CLI errors and repeated-run preservation.
+
+**Observed failures and corrections:** the initial sandboxed fetch could not write `.git/FETCH_HEAD`; the approved retry succeeded. The merge conflict was resolved as described above. Initial lint reported six issues across added/touched code (import formatting, unused import/directive, and external-data `ValueError` style); corrected formatting/imports and documented the intentional input-validation errors. A documentation patch was rejected because it tried to delete and add the same path in one operation; split the edits and applied successfully. No failing model inference or failed pytest case occurred during this integration.
+
+### Real-video integration smoke
+
+Ran the four-player CLI command from the experiment README with `--frame 600 --max-frames 290`, its four documented boxes, and `--output runtime/shared-harness-smoke`. Stdout was saved to `runtime/shared-harness-tracking-result.json`. Actual run ID: `d3a4e1544aab4ff8acb0b067d24ae284`. CPU processing took **11.37 s** for 290 frames / 1,160 observations: **612 usable, 548 missing**. Each near-side player had 290 usable estimates; each far-side player had 16 usable and 274 missing. The known ID-fragmentation limitation remains.
+
+With the user's explicit approval, used agent-estimated corners from frame 600: `[[637,191],[1095,189],[1623,884],[150,897]]`, in far-left, far-right, near-right, near-left order. Saved them as `runtime/shared-harness-smoke/approximate-corners.json` with approximation/occlusion/lens-distortion notes. These are **not reviewed calibration or accuracy ground truth**; the harness preserves that annotation in its summaries.
+
+Called `run_harness` at 1 FPS for frames `[600,890)`: player 1 at native and 960-pixel long-side resolution, player 2 native, and player 3 native. Each produced ten samples at exact source frames 600, 630, …, 870. Both near players retained all ten points; the far player retained one point and nine `not_visible` samples. Native versus resized court-coordinate difference was **0.0 ft** in this run. All runs had unavailable accuracy/error metrics because no labels were supplied. Assertions and output paths are saved in `runtime/shared-harness-smoke/validation.json`; all artifacts remain gitignored.
+
+Real CLI reproduction, from `experiments/vlm-harness`:
+
+```sh
+../player-tracking-yolo/.venv/bin/python -m harness.run \
+  '../../Screen Recording 2026-11-16 175406 (1).mp4' \
+  --analyzer yolo:yolo26n-pose \
+  --positions ../player-tracking-yolo/runtime/shared-harness-smoke/d3a4e1544aab4ff8acb0b067d24ae284/positions.json \
+  --player-id player_2 \
+  --corners ../player-tracking-yolo/runtime/shared-harness-smoke/approximate-corners.json \
+  --start-frame 600 --stop-frame 890 --fps 1 \
+  --output ../player-tracking-yolo/runtime/shared-harness-smoke/cli-evaluation
+```
+
+The command above exited 0, reported `zone accuracy n/a` and `position error mean n/a`, and wrote the CSV, summary and analyzer provenance. With no position labels, its `missing 0` metric refers to missing *labeled* positions, not a general tracking-availability measurement; the per-sample rows and tracking metadata retain availability.
+
+**Remaining:** the UI was not changed or re-tested in a browser for this integration; existing API tests passed. Logan still needs to wire model selection, calibration, player identity and evaluation results into the shared flow. No remote CI or teammate review was run, and no new type checker or application build system was introduced; Python compilation passed. Measured position accuracy, ground-reference agreement, independent drill evaluation and far-side re-identification remain unvalidated. The near-half zone definition is unchanged, so a visible far-half point is `out_of_court`.
