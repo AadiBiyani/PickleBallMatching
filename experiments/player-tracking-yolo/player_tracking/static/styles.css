@@ -1,0 +1,31 @@
+:root { color-scheme: light; --ink:#172e43; --blue:#28628c; --green:#24725c; --paper:#f3f7fa; --line:#c2d1db; --white:#fff; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font-family:Avenir,"Segoe UI",sans-serif; font-size:16px; line-height:1.6; }
+header { display:flex; justify-content:space-between; gap:1rem; padding:1rem max(5vw,calc((100vw - 1120px)/2)); color:var(--white); background:var(--blue); }
+.brand { font-weight:700; }.tag { font-size:.85rem; align-self:center; }
+main { max-width:1120px; margin:auto; padding:2.5rem 24px; }
+h1 { font-size:clamp(2rem,5vw,3.5rem); letter-spacing:-.04em; line-height:1.1; margin:0 0 1rem; }
+h2 { font-size:1.4rem; margin:0 0 1.2rem; }.intro { font-size:1.15rem; max-width:70ch; }
+p { max-width:85ch; }small,.muted { color:#445d70; }small { font-size:.85rem; }label small { display:block; font-weight:400; }
+section { padding:1.8rem 0; border-top:1px solid var(--line); margin-top:1.4rem; }
+.step { display:inline-grid; place-items:center; width:2rem; height:2rem; margin-right:.6rem; border-radius:50%; background:#dce9f2; font-size:1rem; }
+.notice { border-left:4px solid var(--green); padding:.4rem 1rem; }
+.row { display:flex; flex-wrap:wrap; gap:.8rem 1.4rem; align-items:end; }label { display:block; font-weight:600; }
+input,button { font:inherit; }input[type=file] { max-width:100%; flex:1; min-width:200px; padding:.8rem 0; }
+input[type=number] { display:block; width:10rem; padding:.5rem .65rem; border:1px solid #8197a8; border-radius:4px; color:var(--ink); background:var(--white); }
+button { padding:.65rem 1.1rem; border:2px solid var(--blue); border-radius:5px; background:var(--blue); color:white; cursor:pointer; font-weight:600; }
+button.secondary { background:var(--white); color:var(--blue); }button:disabled { opacity:.5; cursor:default; }
+:focus-visible { outline:3px solid #ce6f00; outline-offset:4px; }
+#error { background:#fff0ed; border-left:4px solid #a42b20; padding:1rem; white-space:pre-wrap; overflow-wrap:anywhere; }
+.preview-stage { position:relative; line-height:0; background:#dce9f2; }img { display:block; width:100%; height:auto; }
+#candidate-overlays { position:absolute; inset:0; }.candidate-box { position:absolute; padding:0; border:2px solid white; background:transparent; border-radius:0; }
+.candidate-box span { position:absolute; left:0; top:0; background:var(--blue); padding:7px; font-size:.9rem; line-height:1; }
+.candidate-box[aria-pressed=true] { border:4px solid #5eff9d; }.candidate-box[aria-pressed=true] span { background:#18513e; }
+fieldset { border:0; margin:1rem 0 0; padding:0; }legend { font-weight:700; }#candidate-list label { padding:.3rem .6rem; background:var(--white); border:1px solid var(--line); border-radius:4px; }
+.settings { margin-bottom:.7rem; }progress { width:100%; accent-color:var(--green); }#progress-area { margin-top:1.5rem; }
+.metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin:1.3rem 0; }.metrics div { border-left:3px solid var(--blue); padding-left:1rem; }.metrics dt { font-size:.9rem; }.metrics dd { margin:0; font-size:2rem; font-weight:700; }
+.playback { background:#dce9f2; padding:1rem; align-items:center; }.playback label { flex:1; min-width:180px; }.playback input { display:block; width:100%; }output { font-size:.9rem; min-width:140px; }
+nav { display:flex; flex-wrap:wrap; gap:1rem; }a { color:var(--blue); font-weight:600; text-underline-offset:3px; }footer { margin-top:3rem; border-top:1px solid var(--line); padding-top:1rem; font-size:.85rem; color:#445d70; }
+.table-scroll { overflow:auto; }table { border-collapse:collapse; width:100%; background:white; font-size:.9rem; }caption { text-align:left; font-weight:700; padding:.5rem 0; }th,td { text-align:left; padding:.65rem .8rem; border-bottom:1px solid var(--line); }
+[hidden] { display:none !important; }
+@media(max-width:600px) { main { padding:1.8rem 16px; }header { padding:1rem; }.metrics { grid-template-columns:repeat(2,1fr); }.row { gap:.8rem; }button { min-height:44px; }.candidate-box { min-height:0; } }

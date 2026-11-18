@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Player tracking | Pickleball movement lab</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+<header><span class="brand">Pickleball movement lab</span><span class="tag">Local prototype</span></header>
+<main>
+  <h1>Follow the players.</h1>
+  <p class="intro">Select one or more players in your recording, then inspect their movement frame by frame. Positions are ankle-midpoint estimates in image pixels.</p>
+  <p class="notice">This experiment measures a trajectory. It does not measure court coverage, shot success, or player skill.</p>
+  <div id="error" role="alert" hidden></div>
+  <section aria-labelledby="upload-heading">
+    <h2 id="upload-heading"><span class="step">1</span> Choose a recording</h2>
+    <form id="upload-form">
+      <label for="video-file">Local video <small>MP4, MOV, AVI, MKV or WebM · up to 600 MiB and 5 minutes</small></label>
+      <div class="row"><input id="video-file" type="file" accept=".mp4,.mov,.avi,.mkv,.webm" required><button id="upload-button">Upload video</button></div>
+    </form>
+    <p id="source-info" class="muted"></p>
+  </section>
+  <section id="selection-section" aria-labelledby="selection-heading" hidden>
+    <h2 id="selection-heading"><span class="step">2</span> Select your players</h2>
+    <form id="preview-form" class="row">
+      <label for="preview-frame">Starting frame <input id="preview-frame" type="number" min="0" step="1" value="0" required></label>
+      <button id="preview-button" class="secondary">Update preview</button>
+    </form>
+    <p>Choose one or more numbered boxes or use the player list. Select the on-court players and leave spectators unchecked. Tracking starts at this frame and keeps each player's assigned ID.</p>
+    <div class="preview-stage"><img id="preview-image" alt="Original video frame for selecting a player"><div id="candidate-overlays"></div></div>
+    <fieldset id="candidates"><legend>Detected people</legend><div id="candidate-list" class="row"></div></fieldset>
+    <p id="selection-info" class="muted">Select a player to continue.</p>
+    <form id="run-form">
+      <div class="row settings">
+        <label for="max-frames">Frames to process <input id="max-frames" type="number" min="1" max="1800" step="1" value="300" required></label>
+        <label for="ankle-confidence">Minimum ankle confidence <input id="ankle-confidence" type="number" min="0.01" max="1" step="0.01" value="0.5" required></label>
+        <button id="run-button" disabled>Track selected players</button>
+      </div>
+      <small>Both ankles must meet this prototype threshold. Missing positions are retained. Confidence is not measured accuracy.</small>
+    </form>
+  </section>
+  <div id="progress-area" hidden><p id="status" role="status" aria-live="polite"></p><progress id="progress" max="1" value="0" aria-label="Frames processed"></progress><button id="retry-status" class="secondary" hidden>Check job status</button></div>
+  <section id="results" aria-labelledby="results-heading" hidden>
+    <h2 id="results-heading"><span class="step">3</span> Inspect the trajectory</h2>
+    <p id="completion"></p>
+    <dl class="metrics"><div><dt>Processed frames</dt><dd id="processed">—</dd></div><div><dt>Usable positions</dt><dd id="usable">—</dd></div><div><dt>Missing player observations</dt><dd id="missing">—</dd></div><div><dt>Unreliable ankle observations</dt><dd id="unreliable">—</dd></div></dl>
+    <p id="observation-info"></p>
+    <div class="table-scroll"><table><caption>Results by selected player</caption><thead><tr><th>Player</th><th>Track ID</th><th>Usable</th><th>Not detected</th><th>Unreliable ankles</th></tr></thead><tbody id="player-results"></tbody></table></div>
+    <p id="timing" class="muted"></p>
+    <div id="viewer"><img id="result-image" alt="Annotated tracking frame"><div class="row playback"><button id="play-button" class="secondary">Play frames</button><label for="frame-slider">Annotated frame <input id="frame-slider" type="range" min="0" max="0" value="0"></label><output id="frame-info" for="frame-slider"></output></div></div>
+    <ul id="frame-reasons"></ul>
+    <p class="muted">Green box: selected ID. Yellow point and trail: usable ankle midpoint. Gaps break the trail. Inspect identity and alignment visually; a stable ID can still follow the wrong person.</p>
+    <nav id="downloads" aria-label="Download tracking artifacts"></nav>
+  </section>
+  <footer>YOLO26n pose + ByteTrack · CPU demo<br>Jobs are stored in memory and disappear from this page's API after a server restart. Generated files remain local. Validation-framework integration is pending.</footer>
+</main>
+</body>
+</html>
