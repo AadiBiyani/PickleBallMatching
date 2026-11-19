@@ -301,3 +301,9 @@ Commands, outcomes, limitations and local evidence are in
 - **Integration:** Logan's session UI dispatches isolated YOLO/MediaPipe workers through the existing court harness. Keep continuous selected-player YOLO tracking, exact source frames, calibration and missing observations. MediaPipe remains a first-pose detector without identity locking. Real tracking produces no attempt scores or publishable coverage profile.
 - **Merge resolution:** PR #6 (`a9774be`) squash-merged the same UI source already imported at `11b7bfa`. Verified that those trees differed only in `.gitignore` and this log. Resolve add/add conflicts by retaining the integration code and main's cleaned documentation/ignore entries; no teammate application changes were discarded.
 - **Review boundary:** this is a checkpoint, not completed delivery. Setup, actual test/browser evidence, corrections and remaining validation are recorded in [the integration notes](tracking-ui-integration.md). No raw videos, weights, generated outputs or local context/draft files are included.
+
+## 2026-11-18 — Deferred Gemini integration
+
+- **Human direction:** time constraints limit Liam's Gemini option to a disabled, gray model-selection card. Open a PR for the existing tracking UI integration with this placeholder.
+- **Decision:** label the option "Coming soon" and "Not connected in this prototype." Use the existing accessible disabled selection control; hide the placeholder if the backend later advertises a Gemini model. YOLO, MediaPipe and the separate simulated flow keep their current behavior.
+- **Alternative and consequence:** full integration of PR #8 would require worker dispatch, consent, request bounds and contract validation. That work is deferred. This placeholder adds no SDK, API-key handling, remote calls or backend model registration.

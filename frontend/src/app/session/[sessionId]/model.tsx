@@ -108,6 +108,19 @@ export default function ChooseModel() {
                 </Card>
               </SelectionControl>
             ))}
+            {!models.data.some((m) => m.kind === 'gemini') && (
+              <SelectionControl disabled checked={false} role="radio" label="Gemini — Coming soon" onPress={() => {}}>
+                <Card style={[styles.option, styles.optionDisabled]}>
+                  <Radio on={false} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[type.body, { fontWeight: '600', color: colors.muted }]}>Gemini</Text>
+                    <Text style={type.small}>Liam</Text>
+                    <Text style={[type.small, { fontWeight: '600' }]}>Coming soon</Text>
+                    <Text style={type.small}>Not connected in this prototype.</Text>
+                  </View>
+                </Card>
+              </SelectionControl>
+            )}
           </View>
         </View>
       )}
@@ -162,6 +175,7 @@ export default function ChooseModel() {
 const styles = StyleSheet.create({
   option: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   optionOn: { borderColor: colors.primary, borderWidth: 2 },
+  optionDisabled: { backgroundColor: colors.disabled },
   radio: {
     width: 22,
     height: 22,
