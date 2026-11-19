@@ -1,4 +1,5 @@
 import { api, ApiError } from './api';
+import type { AnalysisOptions } from './types';
 
 export type UploadOutcome = { ok: true } | { ok: false; retryable: boolean; message: string };
 
@@ -7,9 +8,9 @@ export type UploadOutcome = { ok: true } | { ok: false; retryable: boolean; mess
  * selected vision model. Network/server failures are retryable under the same
  * session ID (FR-07); 4xx errors are configuration problems.
  */
-export async function uploadSession(sessionId: string, modelId: string, clipId: string): Promise<UploadOutcome> {
+export async function uploadSession(sessionId: string, modelId: string, clipId: string, analysis?: AnalysisOptions): Promise<UploadOutcome> {
   try {
-    await api.upload(sessionId, { model_id: modelId, clip_id: clipId });
+    await api.upload(sessionId, { model_id: modelId, clip_id: clipId, ...(analysis ? { analysis } : {}) });
     return { ok: true };
   } catch (e) {
     if (e instanceof ApiError) {

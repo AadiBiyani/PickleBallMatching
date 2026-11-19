@@ -20,7 +20,7 @@ export default function ProcessingError() {
       back={false}
       footer={
         <>
-          <Button label="Record Again" onPress={() => s && router.replace(`/drill/${s.drill_id}`)} disabled={!s} />
+          <Button label={s?.analysis ? 'Adjust settings and retry' : 'Record Again'} onPress={() => s && router.replace(s.analysis ? `/session/${sessionId}/model` : `/drill/${s.drill_id}`)} disabled={!s} />
           <Button label="Back to Dashboard" variant="secondary" onPress={() => router.replace('/')} />
         </>
       }

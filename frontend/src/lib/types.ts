@@ -40,6 +40,10 @@ export interface VisionModelInfo {
   sample_fps: number;
   /** "court": reports court feet itself (expected default). "image": pixels, needs the clip's saved corners. */
   output_space: 'court' | 'image';
+  available: boolean;
+  unavailable_reason: string | null;
+  selection_mode: 'none' | 'multiple' | 'first_pose';
+  requires_calibration: boolean;
 }
 
 export interface Clip {
@@ -71,9 +75,31 @@ export interface CourtPoint {
   x_ft: number | null;
   y_ft: number | null;
   zone: Zone;
+  source_frame_index: number | null;
+  player_id: string;
+  status: string;
+  reason: string | null;
+  point_source: string;
+}
+
+export interface PlayerBox { x1: number; y1: number; x2: number; y2: number }
+export interface AnalysisOptions {
+  start_frame: number;
+  max_frames: number;
+  sample_fps: number;
+  selections: PlayerBox[];
+  calibration: { width: number; height: number; corners_px: [number, number][] };
+}
+export interface ClipPreview {
+  source: { width: number; height: number; fps: number; frame_count: number; duration_s: number };
+  frame_index: number;
+  candidates: { candidate_id: number; bbox: PlayerBox; confidence: number }[];
+  image_url: string;
+  corners_px: [number, number][] | null;
 }
 
 export interface Session {
+  analysis: AnalysisOptions | null;
   id: string;
   drill_id: string;
   drill_version: string;
@@ -137,6 +163,7 @@ export interface Results {
   exclusions: { invalid_feed: number; uncertain: number; flagged: number };
   limitations: string[];
   attempts: Attempt[];
+  attempts_source: 'simulated' | 'unavailable';
   track: {
     kind: string;
     model_id: string;
@@ -146,6 +173,10 @@ export interface Results {
     frames: number;
     missing_frames: number;
     zone_counts: Partial<Record<Zone, number>>;
+    data_source: 'model' | 'simulated';
+    observations: number;
+    players: string[];
+    limitations: string[];
   };
 }
 

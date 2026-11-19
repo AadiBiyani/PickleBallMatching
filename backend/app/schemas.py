@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # FR-06 status progression, plus the pre-upload state required by FR-07 retries.
 SessionStatus = Literal["awaiting_upload", "uploaded", "queued", "processing", "completed", "failed"]
@@ -52,6 +52,10 @@ class VisionModelInfo(BaseModel):
     # "court": the model reports court feet itself (expected default); "image": pixels
     # the backend projects with the clip's saved corners (court evaluation harness style).
     output_space: Literal["court", "image"]
+    available: bool = True
+    unavailable_reason: str | None = None
+    selection_mode: Literal["none", "multiple", "first_pose"] = "none"
+    requires_calibration: bool = False
 
 
 class Clip(BaseModel):
@@ -82,6 +86,7 @@ Zone = Literal[
 
 
 class CourtPoint(BaseModel):
+    model_config = ConfigDict(allow_inf_nan=False)
     frame_index: int
     time_s: float
     x_px: float | None  # None when the player was not visible in this frame
@@ -89,6 +94,11 @@ class CourtPoint(BaseModel):
     x_ft: float | None
     y_ft: float | None
     zone: Zone
+    source_frame_index: int | None = None
+    player_id: str = "player_1"
+    status: str = "ok"
+    reason: str | None = None
+    point_source: str = "simulated"
 
 
 class TrackSummary(BaseModel):
@@ -100,6 +110,10 @@ class TrackSummary(BaseModel):
     frames: int
     missing_frames: int  # frames with no player point (zone "not_visible")
     zone_counts: dict[str, int]
+    data_source: Literal["simulated", "model"] = "simulated"
+    observations: int = 0
+    players: list[str] = Field(default_factory=lambda: ["player_1"])
+    limitations: list[str] = Field(default_factory=list)
 
 
 # ---- Attempts and results (FR-09 - FR-12) ---------------------------------
@@ -159,6 +173,7 @@ class Results(BaseModel):
     limitations: list[str]
     attempts: list[Attempt]
     track: TrackSummary
+    attempts_source: Literal["simulated", "unavailable"] = "simulated"
 
 
 # ---- Sessions ---------------------------------------------------------------
@@ -190,6 +205,7 @@ class Session(BaseModel):
     error: str | None = None
     scenario: Scenario = "normal"
     steps: list[str] = Field(default_factory=lambda: list(PIPELINE_STEPS))
+    analysis: "AnalysisOptions | None" = None
 
 
 class CreateSessionRequest(BaseModel):
@@ -201,9 +217,41 @@ class CreateSessionRequest(BaseModel):
     scenario: Scenario = "normal"
 
 
-class UploadRequest(BaseModel):
+class StrictInput(BaseModel):
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
+
+
+class Calibration(StrictInput):
+    width: int = Field(gt=0, strict=True)
+    height: int = Field(gt=0, strict=True)
+    corners_px: list[tuple[float, float]] = Field(min_length=4, max_length=4)
+
+
+class PlayerBox(StrictInput):
+    x1: float = Field(ge=0)
+    y1: float = Field(ge=0)
+    x2: float = Field(gt=0)
+    y2: float = Field(gt=0)
+
+    @model_validator(mode="after")
+    def positive_area(self):
+        if self.x2 <= self.x1 or self.y2 <= self.y1:
+            raise ValueError("Player boxes must have positive width and height.")
+        return self
+
+
+class AnalysisOptions(StrictInput):
+    start_frame: int = Field(default=0, ge=0, strict=True)
+    max_frames: int = Field(default=300, ge=1, le=1800, strict=True)
+    sample_fps: float = Field(default=1, gt=0, le=10)
+    selections: list[PlayerBox] = Field(default_factory=list, max_length=8)
+    calibration: Calibration
+
+
+class UploadRequest(StrictInput):
     model_id: str
     clip_id: str
+    analysis: AnalysisOptions | None = None
 
 
 class FlagRequest(BaseModel):

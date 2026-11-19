@@ -12,9 +12,14 @@ on this branch). Add output_space="court" once it reports feet:
 
 from .base import HarnessAnalyzer, LocatedPoint, VisionModel
 from .simulated import SimulatedModel
+from .workers import WorkerModel
 
 _MODELS: list[VisionModel] = [
     SimulatedModel(),
+    WorkerModel("yolo", "yolo26n-pose", "YOLO pose + ByteTrack", "Aadi",
+                "Tracks explicitly selected players continuously; ankle midpoint positions."),
+    WorkerModel("mediapipe", "pose-landmarker-lite", "MediaPipe Pose Landmarker", "Nishaant",
+                "One detected pose per sample; heel positions. No selected-player identity lock."),
 ]
 
 MODELS: dict[str, VisionModel] = {m.id: m for m in _MODELS}

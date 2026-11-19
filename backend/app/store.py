@@ -19,6 +19,7 @@ class Store:
             self.tracks: dict[str, TrackSummary] = {}
             # Per-frame court points, in the harness's results.csv shape.
             self.track_points: dict[str, list[CourtPoint]] = {}
+            self.artifacts: dict = {}
             # Published profile versions per player, oldest first (FR-15).
             self.profiles: dict[str, list[PublishedProfile]] = {}
 
