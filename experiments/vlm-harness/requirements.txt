@@ -1,0 +1,6 @@
+# mediapipe is installed before opencv-contrib-python. A second OpenCV wheel
+# from mediapipe would replace the windowed build, so the contrib package stays last.
+mediapipe>=1.1,<2
+opencv-contrib-python>=4.8,<5
+numpy>=1.24,<3
+pytest>=8,<9
