@@ -2,7 +2,7 @@
 
 One test video has its four court corners saved once. Each model then returns only the player's point in the frame it was shown. This harness maps that point through the same homography, assigns a court zone, and scores both against a label file.
 
-YOLO, Gemini, and the pose landmarker are not in this folder. Each one lands as its own analyzer module later.
+The pose landmarker is registered as `mediapipe`. YOLO and Gemini are not in this folder yet. Each of those lands as its own analyzer module later.
 
 ## Setup
 
@@ -13,6 +13,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
+
+`opencv-contrib-python` is listed after `mediapipe` in `requirements.txt`. Keep that order. MediaPipe can replace the windowed OpenCV package, and the corner click tool needs the windowed build.
 
 ## Save corners once
 
@@ -28,7 +30,10 @@ python ../player-tracking/mark_corners.py data/drill.mp4 --registry data/corners
 
 ```bash
 python -m harness.run data/drill.mp4 --analyzer fake --corners data/corners.json
+python -m harness.run data/drill.mp4 --analyzer mediapipe:pose-landmarker-lite --corners data/corners.json
 ```
+
+The pose analyzer finds one player's heels and returns that pixel. The first run downloads `pose_landmarker_lite.task` into `experiments/player-tracking/models/`, which is gitignored. It does not choose a zone.
 
 `--fps` defaults to 1. The frames stay at the video's own size unless `--long-side` is set. When it is set, the saved corners are scaled into that smaller frame.
 

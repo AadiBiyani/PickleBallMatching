@@ -29,13 +29,20 @@ def _make_fake(model: str) -> Analyzer:
     return FakeAnalyzer(model)
 
 
+def _make_mediapipe(model: str) -> Analyzer:
+    from .mediapipe_pose import PoseLandmarkerAnalyzer
+
+    return PoseLandmarkerAnalyzer(model)
+
+
 _FACTORIES: dict[str, Callable[[str], Analyzer]] = {
     "fake": _make_fake,
+    "mediapipe": _make_mediapipe,
 }
 
 
 def create_analyzer(spec: str) -> Analyzer:
-    """Build an analyzer from 'kind' or 'kind:model'. Only fake is registered here."""
+    """Build an analyzer from 'kind' or 'kind:model'. YOLO and Gemini are separate pull requests."""
     kind, _, model = spec.partition(":")
     kind = kind.strip().lower()
     if kind not in _FACTORIES:
