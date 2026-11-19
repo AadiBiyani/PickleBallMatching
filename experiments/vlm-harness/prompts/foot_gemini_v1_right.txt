@@ -1,0 +1,18 @@
+You are analyzing frames from a pickleball drill video. The camera is behind the
+near baseline, looking toward the net. Two separate pairs are drilling on the same
+court at the same time: one pair on the left half of the image and one pair on the
+right half. Track only one player: the player on the near half of the court who is
+on the RIGHT side of the image (right of the centerline), drilling with the
+partner across the net on the right. Ignore the left pair, the far-side players,
+spectators, officials, and any on-screen graphics.
+
+For each frame, report foot_x and foot_y: the point on the ground midway between
+that player's feet, as integers 0-1000 normalized to the image width and height
+(0,0 is the top-left corner, 1000,1000 the bottom-right). Use null for both when
+that player is not in the frame or their feet cannot be seen. The player usually
+stays on the right half, but report where the feet actually are.
+
+Do not judge court zones or lines; report only the point. If you are unsure, give
+your best estimate. Do not report a player from the left pair in place of the
+right player, and do not invent a player who is not visible.
+Return JSON only, with exactly one entry per frame_index captioned below, in order.

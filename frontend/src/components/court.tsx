@@ -2,7 +2,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Line, Path, Polygon, Rect } from 'react-native-svg';
 
 import { colors, pct, radius, space, type } from '@/lib/theme';
-import type { RegionResult } from '@/lib/types';
+import type { CourtPoint, RegionResult } from '@/lib/types';
 
 // ---- Static camera view (stands in for the live preview in the prototype) --
 
@@ -134,7 +134,141 @@ export function CoverageCourt({ regions, minScored }: { regions: RegionResult[];
   );
 }
 
+// ---- Tracked positions (top-down, near half) -------------------------------
+
+// Court feet as in the harness: x 0-20 left to right as seen from behind the
+// baseline, y 22 (net) to 44 (near baseline). The view adds a 2 ft margin so
+// out-of-court points near the lines stay visible.
+const NET_Y_FT = 22;
+const KITCHEN_Y_FT = 29;
+const TRANSITION_Y_FT = 36.5; // no painted line; the harness's zone boundary
+const BASELINE_Y_FT = 44;
+const COURT_W_FT = 20;
+const MARGIN_FT = 2;
+const PX_PER_FT = 14;
+const VIEW_W = (COURT_W_FT + 2 * MARGIN_FT) * PX_PER_FT;
+const VIEW_H = (BASELINE_Y_FT - NET_Y_FT + 2 * MARGIN_FT) * PX_PER_FT;
+
+const sx = (xFt: number) => (xFt + MARGIN_FT) * PX_PER_FT;
+const sy = (yFt: number) => (yFt - NET_Y_FT + MARGIN_FT) * PX_PER_FT;
+const inView = (p: CourtPoint) =>
+  p.x_ft! >= -MARGIN_FT &&
+  p.x_ft! <= COURT_W_FT + MARGIN_FT &&
+  p.y_ft! >= NET_Y_FT - MARGIN_FT &&
+  p.y_ft! <= BASELINE_Y_FT + MARGIN_FT;
+
+/** Interpolate from a light to a dark blue so the path reads first-to-last. */
+function timeColor(t: number): string {
+  const from = [0xa9, 0xc2, 0xf5];
+  const to = [0x10, 0x2a, 0x8c];
+  const c = from.map((f, i) => Math.round(f + (to[i] - f) * t));
+  return `rgb(${c[0]},${c[1]},${c[2]})`;
+}
+
+/**
+ * The player's position in each sampled frame, in court feet, on the near half.
+ * Frames without a position are counted, never drawn or interpolated, and
+ * points outside the view are counted rather than clamped to its edge.
+ */
+export function TrackCourt({ points }: { points: CourtPoint[] }) {
+  const located = points.filter((p) => p.x_ft != null && p.y_ft != null);
+  const shown = located.filter(inView);
+  const missing = points.length - located.length;
+  const outsideView = located.length - shown.length;
+  const last = Math.max(1, points.length - 1);
+  // Join only consecutive frames; a gap (missing or off-view frame) stays a gap.
+  const segments = shown
+    .slice(1)
+    .map((p, i) => [shown[i], p] as const)
+    .filter(([a, b]) => b.frame_index === a.frame_index + 1);
+  const kitchenL = sx(0);
+  const kitchenR = sx(COURT_W_FT);
+  return (
+    <View>
+      <View style={styles.netRow}>
+        <Text style={[type.small, { fontWeight: '600', color: colors.text }]}>Player position per frame</Text>
+        <Text style={type.small}>Net ↑</Text>
+      </View>
+      <Svg width="100%" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} style={{ aspectRatio: VIEW_W / VIEW_H }}>
+        <Rect x={0} y={0} width={VIEW_W} height={VIEW_H} fill={colors.border} rx={6} />
+        <Rect
+          x={sx(0)}
+          y={sy(NET_Y_FT)}
+          width={COURT_W_FT * PX_PER_FT}
+          height={(BASELINE_Y_FT - NET_Y_FT) * PX_PER_FT}
+          fill={colors.courtFill}
+          stroke={colors.courtLine}
+          strokeWidth={2}
+        />
+        <Line x1={kitchenL} y1={sy(KITCHEN_Y_FT)} x2={kitchenR} y2={sy(KITCHEN_Y_FT)} stroke={colors.courtLine} strokeWidth={2} />
+        <Line
+          x1={sx(COURT_W_FT / 2)}
+          y1={sy(KITCHEN_Y_FT)}
+          x2={sx(COURT_W_FT / 2)}
+          y2={sy(BASELINE_Y_FT)}
+          stroke={colors.courtLine}
+          strokeWidth={2}
+        />
+        <Line
+          x1={kitchenL}
+          y1={sy(TRANSITION_Y_FT)}
+          x2={kitchenR}
+          y2={sy(TRANSITION_Y_FT)}
+          stroke={colors.courtLine}
+          strokeWidth={1}
+          strokeDasharray="4 4"
+          opacity={0.6}
+        />
+        <Rect x={sx(0) - 4} y={sy(NET_Y_FT) - 3} width={COURT_W_FT * PX_PER_FT + 8} height={5} fill={colors.text} />
+        {segments.map(([a, b]) => (
+          <Line
+            key={`seg-${b.frame_index}`}
+            x1={sx(a.x_ft!)}
+            y1={sy(a.y_ft!)}
+            x2={sx(b.x_ft!)}
+            y2={sy(b.y_ft!)}
+            stroke={colors.accent}
+            strokeWidth={1.5}
+            opacity={0.7}
+          />
+        ))}
+        {shown.map((p) => {
+          const fill = timeColor(p.frame_index / last);
+          const out = p.zone === 'out_of_court';
+          return (
+            <Circle
+              key={`pt-${p.frame_index}`}
+              cx={sx(p.x_ft!)}
+              cy={sy(p.y_ft!)}
+              r={5}
+              fill={out ? colors.card : fill}
+              stroke={out ? colors.danger : colors.card}
+              strokeWidth={out ? 2 : 1}
+            />
+          );
+        })}
+      </Svg>
+      <View style={styles.legend}>
+        <View style={[styles.swatch, { backgroundColor: timeColor(0) }]} />
+        <Text style={type.small}>first</Text>
+        <View style={[styles.swatch, { backgroundColor: timeColor(1) }]} />
+        <Text style={type.small}>last</Text>
+        <View style={[styles.swatch, { backgroundColor: colors.card, borderColor: colors.danger, borderWidth: 2 }]} />
+        <Text style={type.small}>out of court</Text>
+      </View>
+      <Text style={[type.small, { marginTop: 4, fontSize: 12 }]}>
+        {located.length} of {points.length} frames have a position
+        {missing ? ` · ${missing} without one (not drawn)` : ''}
+        {outsideView ? ` · ${outsideView} outside this view (not drawn)` : ''}. Dashed line: the unpainted
+        transition/backcourt boundary.
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  legend: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: space.sm, flexWrap: 'wrap' },
+  swatch: { width: 12, height: 12, borderRadius: 6 },
   netRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   net: { height: 3, backgroundColor: colors.text, borderRadius: 2, marginBottom: space.sm },
   cells: { flexDirection: 'row', gap: 6 },

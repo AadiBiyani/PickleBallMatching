@@ -227,8 +227,14 @@ def build_results(session_id: str) -> Results | None:
         "insufficient instead of being scored.",
         "Ranges are 95% Wilson intervals; with about 6 attempts per direction they are wide.",
     ]
+    # Attempts always come from simulate_attempts, whichever tracking model ran.
     if track.model_id == "simulated":
         limitations.append("Prototype: tracking and attempt outcomes are simulated.")
+    else:
+        limitations.append(
+            f"Prototype: player positions come from {track.kind}:{track.model_id}, "
+            "but attempt outcomes and scores are simulated."
+        )
     if len(attempts) < drill.feed_count:
         limitations.insert(0, f"Only {len(attempts)} of {drill.feed_count} feeds were recorded.")
     return Results(

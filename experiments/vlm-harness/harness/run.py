@@ -18,6 +18,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .analyzers import create_analyzer
+from .analyzers.base import AnalyzerRequestError
 from .contract import NOT_VISIBLE, zone_from_feet
 from .corners import entry_for, load_registry, scale_corners
 from .frames import DEFAULT_FPS, extract_frames
@@ -102,7 +103,13 @@ def run_harness(
     output_root=None,
     start_frame=0,
     stop_frame=None,
+    consent_confirmed=False,
 ) -> RunOutcome:
+    if getattr(analyzer, "is_remote", False) and not consent_confirmed:
+        raise ValueError(
+            f"{analyzer.kind}:{analyzer.model_id} sends frames to a third-party API. Re-run with "
+            "--consent-confirmed only if everyone visible in this clip agreed to that use (SYS-08)."
+        )
     video = Path(video)
     clip = extract_frames(
         video,
@@ -191,7 +198,19 @@ def run_harness(
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Project one model's player points onto the court and score them.")
     parser.add_argument("clip", help="path to the test video")
-    parser.add_argument("--analyzer", required=True, help="fake or yolo[:yolo26n-pose]")
+    parser.add_argument(
+        "--analyzer",
+        required=True,
+        help="fake, mediapipe, yolo[:yolo26n-pose] or gemini[:gemini-3.8-flash]",
+    )
+    parser.add_argument(
+        "--prompt", type=Path, default=None, help="gemini prompt file; its stem is the prompt version"
+    )
+    parser.add_argument(
+        "--consent-confirmed",
+        action="store_true",
+        help="everyone visible in the clip agreed to it being sent to a third-party API (required for gemini)",
+    )
     parser.add_argument(
         "--positions", type=Path, help="completed YOLO positions.json export"
     )
@@ -210,12 +229,29 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _load_env() -> None:
+    """Read GEMINI_API_KEY from this experiment's .env, then the repo root's. Neither is committed."""
+    try:
+        from dotenv import load_dotenv
+    except ImportError:
+        return
+    load_dotenv(EXPERIMENT_DIR / ".env")
+    load_dotenv(EXPERIMENT_DIR.parents[1] / ".env")
+
+
 def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
+    _load_env()
     try:
         analyzer = create_analyzer(
-            args.analyzer, positions_path=args.positions, player_id=args.player_id
+            args.analyzer,
+            positions_path=args.positions,
+            player_id=args.player_id,
+            prompt_path=args.prompt,
         )
+        notice = getattr(analyzer, "notice", None)
+        if notice and args.consent_confirmed:
+            print(notice, file=sys.stderr)
         outcome = run_harness(
             args.clip,
             analyzer,
@@ -226,8 +262,9 @@ def main(argv=None) -> int:
             output_root=args.output,
             start_frame=args.start_frame,
             stop_frame=args.stop_frame,
+            consent_confirmed=args.consent_confirmed,
         )
-    except (ValueError, OSError, court.CalibrationError) as exc:
+    except (ValueError, OSError, court.CalibrationError, AnalyzerRequestError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     score = outcome.score

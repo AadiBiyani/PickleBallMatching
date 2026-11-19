@@ -102,6 +102,12 @@ def upload(session_id: str, req: UploadRequest, background: BackgroundTasks) -> 
         model = get_model(req.model_id)
         if model is None:
             raise HTTPException(400, "Unknown vision model.")
+        if model.is_remote and not req.consent_confirmed:
+            raise HTTPException(
+                400,
+                f"{model.name} sends frames to an outside service. Confirm that everyone visible "
+                "in the clip agreed to that use (SYS-08).",
+            )
         resolved = clips.resolve(req.clip_id)
         if resolved is None:
             raise HTTPException(400, "Unknown clip.")
