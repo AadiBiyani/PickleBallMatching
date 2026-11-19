@@ -294,3 +294,25 @@ Commands, outcomes, limitations and local evidence are in
 - **Consequences:**
   - A model that reports feet does its own court calibration, so its calibration error is not separable from its tracking error in the backend. The court evaluation harness scores only pixel models today and would need a matching option to score feet-reporting models fairly.
   - NFR-06's 0.30 m target is about 0.98 ft.
+
+### AD-016: Gemini returns only a foot point; remote models need confirmed consent
+
+- **Date:** 2026-11-18
+- **Related:** `liam/experiment/no-issue-gemini-analyzer`; follows AD-014 and AD-015; FR-08, NFR-06, SYS-08
+- **Decided by:** Liam (human) chose to port the Gemini work from `liam-test-harness` to the shared harness, focus on Gemini only, and add a court view. The agent proposed and implemented the contract, the consent check, and the results labelling.
+- **Decision:**
+  - The Gemini analyzer returns one foot point per frame, as integers 0-1000 normalized to the image, converted to pixels of the frame it was given. It does not pick a zone; the harness and the backend derive zones from feet (AD-014). It reports `output_space = "image"`.
+  - Each frame's answer is validated on its own. An invalid answer gets no point and is counted as missing, never dropped or retried. A request with no response (no key, persistent rate limit, daily quota, provider error) stops the run instead of marking frames not visible.
+  - Remote analyzers are refused without explicit consent: `--consent-confirmed` in the harness CLI, `consent_confirmed` on `POST /upload`, and a checkbox on the model screen.
+  - Results label attempt outcomes as simulated for every tracking model, because `simulate_attempts` runs whichever model tracked the player.
+  - The results screen plots each frame's court position; frames without one are counted, not drawn, clamped or interpolated.
+- **Alternatives considered:**
+  - Keep the `liam-test-harness` design, where the model chooses the zone. It would not fit `locate(frames)`, and a model's zone could disagree with the homography's.
+  - Leave consent as a warning only (the state after #6). Frames would reach Google without any confirmation.
+  - Copy the analyzer into `backend/` instead of importing it from `experiments/vlm-harness`. That would duplicate the adapter, cache and rate limiting while the harness is still changing.
+- **Rationale:** One point contract keeps Gemini comparable with the pixel models in the harness and the app. SYS-08 needs consent before footage leaves the machine, so it is enforced where the frames are sent, not only shown in the UI.
+- **Consequences:**
+  - The backend imports the analyzer from `experiments/`, which `DEVELOPMENT.md` discourages for product code. It is prototype-only, and registration is skipped when the harness or OpenCV is missing. When the harness graduates to `models/`, import from there.
+  - The Gemini response cache under `experiments/vlm-harness/output/` is shared by the CLI and the app.
+  - On one 30 s clip, Gemini returned 30/30 valid points that an eye check placed on the right player, but one request took 18 minutes. There is no request timeout or progress display yet, and no labelled accuracy result.
+  - The straight-line homography does not model lens distortion, so feet on a curved near baseline can project past 44 ft and become `out_of_court`.
