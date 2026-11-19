@@ -15,14 +15,14 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from ..contract import LocatedPoint
+from ..frames import Frame
+
 PLAYER_TRACKING = Path(__file__).resolve().parents[3] / "player-tracking"
 if str(PLAYER_TRACKING) not in sys.path:
     sys.path.insert(0, str(PLAYER_TRACKING))
 
 import contact  # noqa: E402
-
-from ..contract import LocatedPoint
-from ..frames import Frame
 
 MODEL_ID = "pose_landmarker_lite"
 MODEL_URL = (

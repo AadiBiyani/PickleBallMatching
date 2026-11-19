@@ -2,7 +2,7 @@
 
 One test video has its four court corners saved once. Each model then returns only the player's point in the frame it was shown. This harness maps that point through the same homography, assigns a court zone, and scores both against a label file.
 
-The pose landmarker is registered as `mediapipe`. YOLO and Gemini are not in this folder yet. Each of those lands as its own analyzer module later.
+Registered analyzers are `fake`, `mediapipe`, and `yolo`. MediaPipe returns a heel point from each sampled image. YOLO consumes a completed continuous tracking export from [player-tracking-yolo](../player-tracking-yolo/README.md). Gemini still needs an adapter.
 
 ## Setup
 
@@ -14,7 +14,9 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-`opencv-contrib-python` is listed after `mediapipe` in `requirements.txt`. Keep that order. MediaPipe can replace the windowed OpenCV package, and the corner click tool needs the windowed build.
+For YOLO, use the separate **Python 3.12** environment in `../player-tracking-yolo/.venv`. From that experiment, run `uv sync --frozen --python 3.12` first. Run the harness with that interpreter as shown below; **do not also install this directory's requirements into the YOLO environment**. The export adapter downloads no model or dependency.
+
+The harness requirements include MediaPipe from merged PR #3 and retain its `opencv-contrib-python` dependency. YOLO keeps its own locked `opencv-python` environment. These are separate installation paths, not one combined dependency set. The shared geometry and adapter software tests have been exercised with YOLO's installed versions, but real MediaPipe inference has not been validated in that environment. [OpenCV's package instructions](https://pypi.org/project/opencv-python/) require choosing one distribution per environment because all variants install `cv2`; installing distributions in a particular order does not provide isolation. A future shared UI can dispatch each pipeline to its environment while consuming the common result contract.
 
 ## Save corners once
 
@@ -47,11 +49,33 @@ time_s,zone,x_ft,y_ft
 
 `x_ft` and `y_ft` may be left empty. Zone accuracy still runs. Position error is reported only for rows that have both.
 
-Each run writes `output/runs/<timestamp>_<clip>/results.csv` and `summary.json`.
+Each run writes `output/runs/<timestamp>_<clip>_<analyzer>_<unique-id>/results.csv` and `summary.json`. Unique directories prevent repeated evaluations from overwriting each other. The summary retains the saved corner entry and its annotations, scaled corners and sampling settings.
+
+## Evaluate a YOLO tracking run
+
+1. Use the YOLO browser or CLI to explicitly select players and finish a continuous tracking run. Obtain its `positions.json`; incomplete runs are rejected.
+2. Save court corners with the shared tool above. Use the same video bytes as the tracking run; SHA-256 and image dimensions are checked.
+3. Select one exported `player_id` and a window wholly covered by the run. A run starting at frame 600 and processing 290 frames uses `[600, 890)`:
+
+```bash
+# From experiments/vlm-harness; replace the paths for your video and export.
+../player-tracking-yolo/.venv/bin/python -m harness.run /path/to/clip.mp4 \
+  --analyzer yolo:yolo26n-pose \
+  --positions /path/to/positions.json --player-id player_1 \
+  --corners data/corners.json --start-frame 600 --stop-frame 890 --fps 1
+```
+
+`--stop-frame` is exclusive; omitting it requests the rest of the video, not just the tracked window. Unprocessed footage causes an error rather than being counted as missed detections. Repeat with another explicit player ID for a multi-player export. Model comparisons must use the same player, corners, window, sampling rate and labels.
+
+YOLO tracks continuously before sampling. `frame_index` in `results.csv` is the harness sample ID; the added `source_frame_index` is the original decoded frame. Matching uses exact source indices instead of rounded timestamps. Harness label timestamps still use its existing frame-index/FPS convention; variable-frame-rate label alignment is unvalidated.
+
+The adapter returns only `LocatedPoint` image coordinates. Shared `perspective.py` applies homography and `zone_from_feet` assigns zones. `--long-side 960` rescales exported points and corners together; it does **not** rerun YOLO at another inference resolution. `analyzer.json` retains the original model/settings, player ID, export checksum, sampled observations, missing reasons and source timestamps. Both missing statuses become null coordinates / `not_visible`; neither is interpolated or removed.
+
+The model remains **YOLO26n-pose (`yolo26n-pose.pt`) + ByteTrack**. Ankle midpoint is a ground-position proxy, not measured foot-floor contact. Agree reference definitions before comparing physical errors. Zones cover only the **near half**: a visible far-half point is `out_of_court`, not `not_visible`. Accuracy is unavailable without labels. Logan's shared model-selector/browser wiring remains separate work; this change exposes the evaluation adapter and CLI.
 
 ## Add a model
 
-Add one module under `harness/analyzers/` with `locate(frames) -> points`. Each point is a `LocatedPoint`: the frame index and `x_px`, `y_px` in that frame, or both coordinates null when the player is not visible. Register it in `_FACTORIES` in `harness/analyzers/base.py`. The module must not apply the homography or choose the zone.
+Add one module under `harness/analyzers/` with `locate(frames) -> points`. Each point is a `LocatedPoint`: the sample index and `x_px`, `y_px` in that frame, or both coordinates null when not visible. Register it in `_FACTORIES` in `harness/analyzers/base.py`. Ordinary factories keep the existing `factory(model)` signature; the registry passes export configuration only to YOLO and rejects YOLO-only options for other analyzers. The module must not apply homography or choose zones. Export-backed analyzers may implement `validate_video(video, width, height, start_frame, stop_frame)` and `provenance()`; the runner calls these to validate the source and retain an audit file.
 
 `prompts/foot_v1.txt` is the foot-point prompt for a later vision-language adapter.
 
@@ -62,3 +86,12 @@ python -m pytest -v
 ```
 
 The tests use a synthetic clip and do not download a model.
+
+To include YOLO adapter tests, use `../player-tracking-yolo/.venv/bin/python -m pytest -v`. They explicitly skip when the optional `player_tracking` package is absent. Fabricated observations test contract errors, exact frame/player selection, scaling, missing rows, shared geometry, CLI behavior and output preservation; they do not measure YOLO accuracy.
+
+The experiment's `ruff.toml` uses the YOLO package's 110-character line length for new code. Keep existing shared-file layout when making focused changes, rather than reformatting surrounding code. From this directory:
+
+```sh
+../player-tracking-yolo/.venv/bin/ruff check harness/analyzers/base.py harness/analyzers/yolo.py harness/frames.py harness/run.py tests/test_run.py tests/test_yolo.py tests/test_analyzers.py
+../player-tracking-yolo/.venv/bin/ruff format --check harness/analyzers/yolo.py tests/test_yolo.py tests/test_analyzers.py
+```

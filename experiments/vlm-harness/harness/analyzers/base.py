@@ -7,6 +7,7 @@ court corners. A model pull request adds one module and one entry in _FACTORIES.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Protocol
 
 from ..contract import LocatedPoint
@@ -35,17 +36,35 @@ def _make_mediapipe(model: str) -> Analyzer:
     return PoseLandmarkerAnalyzer(model)
 
 
-_FACTORIES: dict[str, Callable[[str], Analyzer]] = {
+def _make_yolo(model: str, **options) -> Analyzer:
+    # Optional integration: fake/other models do not import the YOLO package.
+    from .yolo import YoloAnalyzer
+
+    return YoloAnalyzer(model_id=model, **options)
+
+
+_FACTORIES: dict[str, Callable[..., Analyzer]] = {
     "fake": _make_fake,
     "mediapipe": _make_mediapipe,
+    "yolo": _make_yolo,
 }
 
 
-def create_analyzer(spec: str) -> Analyzer:
-    """Build an analyzer from 'kind' or 'kind:model'. YOLO and Gemini are separate pull requests."""
+def create_analyzer(
+    spec: str,
+    *,
+    positions_path: str | Path | None = None,
+    player_id: str | None = None,
+) -> Analyzer:
+    """Build an analyzer; YOLO consumes a completed continuous tracking export."""
     kind, _, model = spec.partition(":")
     kind = kind.strip().lower()
     if kind not in _FACTORIES:
         known = ", ".join(sorted(_FACTORIES))
         raise ValueError(f"unknown analyzer {kind!r} in {spec!r}; choose from {known}")
+    if kind == "yolo":
+        return _FACTORIES[kind](model.strip(), positions_path=positions_path, player_id=player_id)
+    if positions_path is not None or player_id is not None:
+        raise ValueError("--positions and --player-id apply only to the yolo analyzer")
+    # Other model PRs register factories taking only the model identifier.
     return _FACTORIES[kind](model.strip())

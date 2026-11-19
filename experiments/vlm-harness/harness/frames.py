@@ -7,6 +7,7 @@ scaled to that copy.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -24,6 +25,8 @@ class Frame:
     width_px: int
     height_px: int
     image: np.ndarray
+    # Unlike index (the sample ID), this identifies the original decoded frame.
+    source_frame_index: int | None = None
 
 
 @dataclass(frozen=True)
@@ -47,10 +50,20 @@ def extract_frames(
     video_path: str | Path,
     fps: float = DEFAULT_FPS,
     long_side_px: int | None = None,
+    start_frame: int = 0,
+    stop_frame: int | None = None,
 ) -> ClipFrames:
-    """Sample at `fps`, starting at the first frame. Raises ValueError on a bad clip."""
-    if fps <= 0:
+    """Sample [start_frame, stop_frame) at `fps`; timestamps remain clip-relative."""
+    if not math.isfinite(fps) or fps <= 0:
         raise ValueError(f"fps must be > 0, got {fps}")
+    if type(start_frame) is not int or start_frame < 0:
+        raise ValueError("start frame must be a nonnegative integer")
+    if stop_frame is not None and (
+        type(stop_frame) is not int or stop_frame <= start_frame
+    ):
+        raise ValueError(
+            "stop frame must be an integer greater than start frame (exclusive)"
+        )
     if long_side_px is not None and long_side_px < 64:
         raise ValueError(f"long side must be >= 64 px, got {long_side_px}")
     path = Path(video_path)
@@ -62,15 +75,17 @@ def extract_frames(
         if not cap.isOpened():
             raise ValueError(f"OpenCV could not open video: {path}")
         src_fps = cap.get(cv2.CAP_PROP_FPS)
-        if not src_fps or src_fps <= 0 or np.isnan(src_fps):
+        if not math.isfinite(src_fps) or src_fps <= 0:
             raise ValueError(f"video reports no frame rate: {path}")
 
         frames: list[Frame] = []
         native_width = native_height = None
         k = 0
-        target = 0
+        target = start_frame
         index = 0
         while True:
+            if stop_frame is not None and index >= stop_frame:
+                break
             ok, image = cap.read()
             if not ok:
                 break
@@ -79,12 +94,12 @@ def extract_frames(
             if index == target:
                 shown = image if long_side_px is None else resize_long_side(image, long_side_px)
                 height, width = shown.shape[:2]
-                frames.append(Frame(k, round(index / src_fps, 3), width, height, shown))
+                frames.append(Frame(k, round(index / src_fps, 3), width, height, shown, index))
                 k += 1
-                target = round(k * src_fps / fps)
+                target = start_frame + round(k * src_fps / fps)
                 while target <= index:
                     k += 1
-                    target = round(k * src_fps / fps)
+                    target = start_frame + round(k * src_fps / fps)
             index += 1
     finally:
         cap.release()

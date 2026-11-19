@@ -31,7 +31,6 @@ def _write_clip(path):
 
 
 def _registry(path):
-    import json
     import mark_corners
 
     saved = mark_corners.upsert_clip(
@@ -85,4 +84,4 @@ def test_null_point_stays_blank_and_the_next_frame_is_scored(tmp_path):
 
 def test_unknown_analyzer_is_refused():
     with pytest.raises(ValueError, match="unknown analyzer"):
-        create_analyzer("yolo")
+        create_analyzer("unknown-model")

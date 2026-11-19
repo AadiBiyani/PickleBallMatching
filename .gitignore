@@ -21,6 +21,7 @@ experiments/player-tracking/output/
 *.MOV
 *.avi
 *.mkv
+*.webm
 *.task
 *.pt
 *.pth
