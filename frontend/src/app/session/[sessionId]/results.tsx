@@ -2,7 +2,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Text, View } from 'react-native';
 
-import { CoverageCourt } from '@/components/court';
+import { CoverageCourt, TrackCourt } from '@/components/court';
 import { Button, Card, Chip, Label, LoadState, Notice, Row, Screen, StatTile } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useApi, useReloadOnFocus } from '@/lib/hooks';
@@ -25,6 +25,7 @@ export default function ResultsScreen() {
   const router = useRouter();
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const results = useApi(() => api.results(sessionId), [sessionId]);
+  const track = useApi(() => api.track(sessionId), [sessionId]);
   useReloadOnFocus(results.reload);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string>();
@@ -103,6 +104,20 @@ export default function ResultsScreen() {
               {publishError}
             </Notice>
           )}
+
+          <Card>
+            {track.data ? (
+              <TrackCourt points={track.data} />
+            ) : (
+              <LoadState loading={track.loading} error={track.error} onRetry={track.reload} />
+            )}
+            <Text style={[type.small, { marginTop: space.sm, fontSize: 12 }]}>
+              {r.track.model_id === 'simulated'
+                ? 'Synthetic positions from the simulated tracker.'
+                : `From ${r.track.kind}:${r.track.model_id} at ${r.track.sample_fps} frame/s, mapped to court feet with ` +
+                  "the clip's saved corners. Not yet checked against labeled positions."}
+            </Text>
+          </Card>
 
           <Card>
             <Label>Limitations</Label>
