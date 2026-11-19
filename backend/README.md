@@ -43,7 +43,17 @@ Feet are the project's unit for positions and distances. **Court feet:** the ori
 
 - **Otherwise:** subclass `VisionModel` (`app/vision/base.py`), implement `locate()`, and register it.
 
-Frames have the harness frame fields (`index`, `time_s`, `width_px`, `height_px`, `image`). For real clips, `image` is a BGR NumPy array. Each model sets `sample_fps`, the number of frames per second it is given (10 by default; 1 suits slow remote models). Set `is_remote = True` if frames leave the machine, and the app will show a consent warning (SYS-08).
+Frames have the harness frame fields (`index`, `time_s`, `width_px`, `height_px`, `image`). For real clips, `image` is a BGR NumPy array. Each model sets `sample_fps`, the number of frames per second it is given (10 by default; 1 suits slow remote models). Set `is_remote = True` if frames leave the machine. The app then shows a consent warning and checkbox, and `POST /upload` refuses the model unless the request has `"consent_confirmed": true` (SYS-08).
+
+## Gemini (optional)
+
+Two Gemini entries appear in the model selector when the harness analyzer in `experiments/vlm-harness/` can be imported: the default prompt, and `:right-pair` for the near player of the right-hand pair when two pairs drill at once. Both send frames to Google, so they are remote models, sampled at 1 frame/s, reporting pixels (`"image"`), so the clip needs saved corners.
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install -r requirements-gemini.txt   # Python 3.11+
+```
+
+Put `GEMINI_API_KEY=...` in `experiments/vlm-harness/.env` or the repo-root `.env` (both gitignored). Responses are cached under `experiments/vlm-harness/output/cache/gemini/`, shared with the harness CLI, so a clip already run there returns at once. A new clip makes one request for all its frames; one took 18 minutes on 2026-11-18, and the status screen shows no progress meanwhile. See the harness README for the prompt, validation and rate-limit rules.
 
 ## Clips and court corners
 
