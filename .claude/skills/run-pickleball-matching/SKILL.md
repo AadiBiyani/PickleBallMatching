@@ -7,6 +7,8 @@ The prototype is two processes. The FastAPI backend runs on :8000 and the Expo/R
 
 All paths are relative to the repo root. All commands are **Windows PowerShell 5.1**, the only platform this was verified on.
 
+**Footage and real models are not in git.** On a fresh clone the app runs in simulated mode: a static court, the synthetic clip, and MediaPipe/YOLO marked unavailable. To get the full demo, install the team's demo kit with `backend/scripts/setup_demo.py <kit.zip> --models`; `docs/DEMO.md` has the full guide.
+
 ## Prerequisites
 
 Already present on the dev machine where this was verified; nothing extra was installed system-wide:
@@ -72,9 +74,15 @@ cd backend; .\.venv\Scripts\python.exe -m pytest -q; cd ..
 cd frontend; npx tsc --noEmit; cd ..
 ```
 
-Expected: `34 passed, 1 warning` (the warning is a Starlette/httpx deprecation, harmless), and tsc exits 0.
+Expected: `48 passed, 1 skipped, 1 warning`. The skip is a test that only applies when YOLO's environment is missing; on a machine without it, the result is 49 passed. (the warning is a Starlette/httpx deprecation, harmless), and tsc exits 0.
 
 ## Gotchas
+
+- **Screens that reload on focus briefly show stale data.** After flagging an attempt, the results screen first shows the pre-flag results (with **Publish**) before reloading. If the flag dropped a direction below 5 scored attempts, the reload replaces Publish with **Record Again**. Wait for the `GET …/results` response before deciding which branch you're on; `flow` does. Deciding on the stale screen made `flow` fail in about 1 run in 4.
+- **OpenCV-written MP4s don't play in browsers.** `cv2.VideoWriter` with `mp4v` produces MPEG-4 Part 2 (`FMP4`). Make an H.264 copy with `backend/scripts/make_preview.py` before showing a clip in the app.
+- **An `expo-video` `VideoView` on web needs an explicit 100% width and height.** It renders a `<video>`, a replaced element, so `StyleSheet.absoluteFill` (`inset: 0`) leaves it at its natural size (1280×800) and clips it.
+
+- **Relative program paths need `.\` in PowerShell.** `experiments\vlm-harness\.venv\Scripts\python.exe …` fails with "The module 'experiments' could not be loaded", because PowerShell reads `name\command` as module-qualified. Write `.\experiments\…\python.exe`, or `& "path"`. Placeholders like `<clip>` also fail, because `<` is a reserved operator.
 
 - **PowerShell 5.1 writes UTF-8 with a BOM.** `Set-Content -Encoding utf8` / `ConvertTo-Json | Set-Content` on `frontend/package.json` broke Expo (`JsonFileError ... Unexpected token '﻿'`). Edit JSON with the editor tool, or write with `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding $false))`.
 - **Expo Router keeps earlier screens mounted but hidden.** `getByText('X').last()` can resolve to a hidden copy and time out ("locator resolved to hidden"). The driver always filters `locator('visible=true').first()`; do the same when extending it.

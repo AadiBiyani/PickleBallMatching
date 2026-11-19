@@ -10,6 +10,7 @@ Open the file that matches the task. Leave the others closed.
 | --- | --- |
 | Scope, users, or product decisions | `docs/project-proposal.md` |
 | Process, milestones, or sequencing | `docs/software-development-plan.md` |
+| Building, running, or demoing the prototype (demo kit, footage, model environments) | `docs/DEMO.md` |
 
 ## Working in this repo
 

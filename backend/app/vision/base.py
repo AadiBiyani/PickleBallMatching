@@ -27,8 +27,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Literal
 
+from pathlib import Path
+
 from ..frames import Frame
-from ..schemas import VisionModelInfo
+from ..schemas import Clip, VisionModelInfo
 
 OutputSpace = Literal["court", "image"]
 
@@ -71,11 +73,26 @@ class VisionModel(ABC):
     version: str
     description: str
     output_space: OutputSpace = "court"  # expected default: the model reports court feet
+    needs_corners: bool = False  # True when the clip's saved court corners are required
+    needs_export: bool = False  # True when a precomputed run must exist for the clip (YOLO replay)
     is_remote: bool = False  # True if frames leave this machine (needs consent, SYS-08)
     requires_clip_file: bool = True  # False only for models that never read pixels
     sample_fps: float = 10.0  # frames per second handed to locate()
 
+    def unavailable_reason(self) -> str | None:
+        """Why the model cannot run on this machine at all, or None when it can."""
+        return None
+
+    def clip_problem(self, clip: Clip, path: Path | None) -> str | None:
+        """Why this model cannot analyze this clip, or None when it can."""
+        if self.requires_clip_file and path is None:
+            return f"{self.name} needs a real video clip, not the synthetic one."
+        if self.needs_corners and not clip.has_corners:
+            return f"No court corners are saved for {clip.name}. Add them to sample_clips/corners.json."
+        return None
+
     def info(self) -> VisionModelInfo:
+        reason = self.unavailable_reason()
         return VisionModelInfo(
             id=self.id,
             kind=self.kind,
@@ -88,6 +105,10 @@ class VisionModel(ABC):
             requires_clip_file=self.requires_clip_file,
             sample_fps=self.sample_fps,
             output_space=self.output_space,
+            needs_corners=self.needs_corners,
+            needs_export=self.needs_export,
+            available=reason is None,
+            unavailable_reason=reason,
         )
 
     @abstractmethod
@@ -121,6 +142,7 @@ class HarnessAnalyzer(VisionModel):
         self.id = f"{self.kind}:{self.model_id}"
         self.is_remote = bool(getattr(analyzer, "is_remote", False))
         self.output_space = output_space or getattr(analyzer, "output_space", "image")
+        self.needs_corners = self.output_space == "image"
         self.name = name
         self.owner = owner
         self.description = description

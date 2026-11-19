@@ -40,6 +40,13 @@ export interface VisionModelInfo {
   sample_fps: number;
   /** "court": reports court feet itself (expected default). "image": pixels, needs the clip's saved corners. */
   output_space: 'court' | 'image';
+  /** The clip's saved court corners are required (harness models and pixel models). */
+  needs_corners: boolean;
+  /** A precomputed run must be registered for the clip (YOLO replay). */
+  needs_export: boolean;
+  /** False when the model's Python environment is not set up on this machine. */
+  available: boolean;
+  unavailable_reason: string | null;
 }
 
 export interface Clip {
@@ -49,6 +56,10 @@ export interface Clip {
   synthetic: boolean;
   /** Court corners saved for this clip; required before it can be analyzed. */
   has_corners: boolean;
+  /** Model ids with a precomputed run registered for this clip. */
+  exports: string[];
+  /** Browser-playable copy for the camera screens, relative to the API base. */
+  preview_url: string | null;
 }
 
 /** Court zones from the team's court evaluation harness (near half, left/right as seen in the image). */
@@ -65,6 +76,7 @@ export type Zone =
 /** One sampled frame, as in the harness's results.csv. Court feet: origin far-left outside corner, x 0-20, y 0-44. */
 export interface CourtPoint {
   frame_index: number;
+  source_frame_index: number | null;
   time_s: number;
   x_px: number | null;
   y_px: number | null;
@@ -146,6 +158,8 @@ export interface Results {
     frames: number;
     missing_frames: number;
     zone_counts: Partial<Record<Zone, number>>;
+    processing_s: number | null;
+    harness_run: string | null;
   };
 }
 

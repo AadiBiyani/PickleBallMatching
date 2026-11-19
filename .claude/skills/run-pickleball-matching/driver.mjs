@@ -180,8 +180,15 @@ async function flow() {
     await see('Flag Attempt');
     await shot('4.3-flag-sheet');
     await tap('Flag Attempt');
-    await page.waitForTimeout(800);
+    // Wait for the sheet (and its overlay) to close; a fixed delay was flaky when the API was busy.
+    await page.getByText('Cancel', { exact: true }).locator('visible=true').first().waitFor({ state: 'hidden', timeout: 30000 });
+    // Results reload on focus. Until the reload lands, the screen still shows the pre-flag data
+    // (with Publish), even when the flag dropped a direction below 5 scored attempts; deciding
+    // on that stale screen made this step flaky. Wait for the refreshed results first.
+    const reloaded = page.waitForResponse((r) => /\/api\/sessions\/[^/]+\/results$/.test(r.url()) && r.request().method() === 'GET');
     await tap('Back to Profile');
+    await reloaded;
+    await page.waitForTimeout(300);
 
     await see('Coverage profile');
     if (await text_visible(page, 'Publish to Profile')) {

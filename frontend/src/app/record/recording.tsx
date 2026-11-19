@@ -6,7 +6,7 @@ import { CameraScreen, Pill } from '@/components/CameraScreen';
 import { Button } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useFlow } from '@/lib/flow';
-import { useDrill } from '@/lib/hooks';
+import { useDemoClip, useDrill } from '@/lib/hooks';
 import { colors, space } from '@/lib/theme';
 
 const FEED_INTERVAL_S = 3;
@@ -22,6 +22,7 @@ export default function Recording() {
   const { drillId } = useLocalSearchParams<{ drillId: string }>();
   const { drill } = useDrill(drillId);
   const { feedMethod, scenario } = useFlow();
+  const { previewUri } = useDemoClip();
   const startedAt = useRef(new Date().toISOString());
   const [elapsed, setElapsed] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -31,8 +32,11 @@ export default function Recording() {
   const feeds = drill?.feed_count ?? 20;
   const feed = Math.min(feeds, Math.floor(elapsed / FEED_INTERVAL_S) + 1);
 
+  // The 60 s timer and the end of the demo clip can fire together; only the first stop saves.
+  const stopping = useRef(false);
   const stop = async () => {
-    if (!drill || saving) return;
+    if (!drill || stopping.current) return;
+    stopping.current = true;
     setSaving(true);
     setError(undefined);
     try {
@@ -47,6 +51,7 @@ export default function Recording() {
       router.replace(`/session/${s.id}/model`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : String(e));
+      stopping.current = false; // allow "Try Saving Again"
       setSaving(false);
     }
   };
@@ -66,6 +71,8 @@ export default function Recording() {
     <CameraScreen
       full
       back={false}
+      // The demo clip plays as the recording; it is 60 s like the recording cap, and ending it stops recording.
+      video={previewUri ? { uri: previewUri, playing: !saving, onEnd: stop } : undefined}
       frame="ok"
       showBall
       left={<Pill dot={colors.danger}>REC {mmss(elapsed)} / {mmss(cap)}</Pill>}

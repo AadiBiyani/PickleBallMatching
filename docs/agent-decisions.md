@@ -294,3 +294,102 @@ Commands, outcomes, limitations and local evidence are in
 - **Consequences:**
   - A model that reports feet does its own court calibration, so its calibration error is not separable from its tracking error in the backend. The court evaluation harness scores only pixel models today and would need a matching option to score feet-reporting models fairly.
   - NFR-06's 0.30 m target is about 0.98 ft.
+
+## 2026-11-18 — Run the vision models through the court harness from the backend
+
+- **Issue/PR:** #7, branch `logan/feature/7-vision-model-integration`; pull request pending.
+- **Human direction:** Logan asked to connect the vision models to the prototype UI, following the plan in issue #7: MediaPipe live, YOLO as a precomputed run, Gemini out of scope until it has a harness adapter.
+- **Decision:**
+  - The backend runs `python -m harness.run` as a subprocess, using each model's own interpreter (`HarnessProcessModel`), and reads the run's `results.csv` as the session track.
+  - The harness owns sampling, corners, the homography, and zones for these models. The backend adds no geometry.
+  - Models report:
+    - whether they are available (their environment exists);
+    - whether they need saved corners;
+    - for YOLO, whether a precomputed export is registered for the clip (`sample_clips/exports.json`).
+  - The selector greys out unavailable models with the reason, and the upload endpoint re-checks.
+  - The results screen gains a Movement card: the track on the near half of the court, plus the share of frames in each zone.
+  - Each track records `processing_s` and the harness run folder.
+  - The simulated tracker never decodes a real clip.
+- **Alternatives:**
+  - Import the models into the backend: rejected, because the backend runs Python 3.15 and the MediaPipe and YOLO environments conflict.
+  - Call Aadi's YOLO FastAPI service live: rejected for now, because it needs automatic player selection and also defaults to port 8000.
+  - Port each adapter into the backend: rejected, because it duplicates the harness and risks scoring differences.
+- **Consequences:**
+  - The app and the harness compute identical positions and zones for real models.
+  - Each model needs its environment set up once per machine.
+  - Attempt outcomes and coverage are still simulated. Results say this explicitly, and that zones cover only the near half.
+  - A model failure is shown with the harness's own `error:` message on the processing-error screen.
+- **Validation:** 42 backend tests pass, including a stand-in harness CLI covering results parsing, error messages, exports, availability, and an end-to-end upload. The frontend type-check is clean, and the run skill's smoke test and browser flow pass. A real MediaPipe run (1.2.3, Python 3.13) through the API on a generated court clip with no person completed in 2.75 s of tracking: 20 frames, all `not_visible`, as expected. Follow-up the same day on the team's NCPA clip, trimmed to its first 60 s (`test-60s.mp4`; camera fixed throughout; corners clicked by Logan with `mark_corners.py`): MediaPipe produced 120 frames at 2 fps, with 23 `not_visible` and 16.2 s of tracking. YOLO (environment built with `uv sync --frozen --python 3.12`; near-right player tracked over 1,800 frames, 1,726 usable, 139 s on CPU) was replayed through the app: 120 frames, 4 `not_visible`, 13.7 s. Where both found a player, the median gap between YOLO's ankle midpoint and MediaPipe's heel point was 0.45 ft and 91% of frames were within 2 ft. Seven percent were more than 6 ft apart, where MediaPipe switched players. The zone matched in only 64 of 94 frames, because the player stands near zone boundaries; this is evidence that the reference-point choice matters. Lens distortion in this clip is not corrected; positions near the middle of the near baseline are estimated to be about 2 ft off.
+- **Agent involvement:** Claude Code implemented the backend, frontend, tests, and docs, and ran the checks above. Human review and teammate approval are pending.
+
+## 2026-11-18 — Play the fixed demo clip in the camera screens
+
+- **Issue/PR:** #7, branch `logan/feature/7-vision-model-integration`; pull request pending.
+- **Human direction:** Logan asked to use only the 60 s test clip and to play it back in the camera window. He chose a locked clip, rather than a preselected picker, and a looping preview on the camera check.
+- **Decision:**
+  - `test-60s.mp4` is the prototype's fixed "recording". `PBM_DEMO_CLIP` can change it, and `GET /api/demo-clip` returns it.
+  - The camera screens play a browser-playable copy using `expo-video`, always muted:
+    - the camera check loops it;
+    - the countdown holds the first frame;
+    - recording plays it from 0:00 and stops when it ends or at the 60 s cap, whichever comes first, guarded so the session is saved only once.
+  - The model screen shows the clip as the recording instead of a clip picker.
+  - Without the clip, the app falls back to the picker and the static court illustration.
+  - `backend/scripts/make_preview.py` writes `<clip>.preview.mp4` (H.264, 1280 px, no audio) using the FFmpeg in `imageio-ffmpeg`. Previews are served at `/api/clips/{id}/preview`, which supports Range requests, and are excluded from the clip list.
+- **Alternatives:**
+  - Re-encode `test-60s.mp4` itself to H.264: rejected, because it would change the file's bytes, invalidating the YOLO export's SHA-256 check.
+  - Serve the original `test.mp4` and seek: rejected, because it is 541 MB and 250 s long.
+  - Show a raw HTML `<video>` instead of `expo-video`: rejected, because it is web-only, whereas `expo-video` also works on native.
+  - Keep a clip picker preselected: rejected by Logan.
+- **Consequences:**
+  - The demo shows real footage on every camera screen while recording stays simulated. The camera setup checks are still toggled by hand.
+  - `expo-video` (~58.0.14) is a new frontend dependency, and its config plugin was added to `app.json`.
+  - The preview file is gitignored like the clip, so each machine makes its own.
+  - The `contain` fit letterboxes the 16:10 clip inside the portrait camera area.
+- **Validation:**
+  - 48 backend tests pass, plus one skipped because YOLO's environment exists. The new tests cover previews being hidden from the clip list, Range requests (206), 404s for unknown and path-like clip IDs, and the demo clip.
+  - The frontend type check is clean, and the run skill's smoke test and browser flow pass with no console errors.
+  - In headless Chrome:
+    - the camera-check video played muted and looping (0.5 s → 2.0 s);
+    - the countdown was paused at 0;
+    - recording played from 0 (4.04 s after 4 s).
+  - A first version left the `<video>` at 1280×800 and clipped it. Fixed by giving `VideoView` an explicit 100% size; the video now measures 390×420.
+- **Agent involvement:** Claude Code implemented and verified these changes. Human review is pending.
+
+## 2026-11-18 — Demo kit and a single guide for running the demo
+
+- **Issue/PR:** #7, branch `logan/feature/7-vision-model-integration`; pull request pending.
+- **Human direction:** Logan asked for a setup script and the demo kit itself. He also asked for clear documentation, so that another developer or their agent can build and run the demo even though the footage is gitignored.
+- **Decision:**
+  - The footage, corners, and YOLO run are shared as a **demo kit** zip through the team drive, never git.
+  - `backend/scripts/make_demo_kit.py` packs the kit:
+    - the clip, by its exact bytes;
+    - that clip's corner and export entries;
+    - the YOLO positions file, after checking it was tracked on this exact clip;
+    - `kit.json`, with SHA-256 checksums and provenance, plus a README.
+  - `backend/scripts/setup_demo.py` installs a kit:
+    1. verifies the checksums;
+    2. copies files and merges JSON entries, refusing to overwrite different files or entries without `--force`;
+    3. regenerates the browser preview;
+    4. with `--models`, builds the MediaPipe environment (Python 3.13 via `uv`) and the YOLO environment (`uv sync --frozen --python 3.12`);
+    5. asks the backend what's ready.
+  - `docs/DEMO.md` is the single guide, linked from `AGENTS.md`, both READMEs, and the run skill.
+  - `demo-kit/` and `pickleball-demo-kit-*.zip` are gitignored.
+- **Alternatives:**
+  - Commit the clip: rejected, because it shows identifiable players (SYS-08).
+  - Commit `corners.json` and `exports.json` alone: rejected, because they're useless without the clip, and the positions file is tracking data of identifiable players.
+  - A PowerShell-only setup script: rejected, because teammates use macOS.
+  - Pack the browser preview too: rejected, because it's derived and regenerating it takes 6 s.
+- **Consequences:**
+  - A fresh clone without the kit still runs in simulated mode, which was verified.
+  - With the kit, one command produces the full demo.
+  - The team-drive link in `docs/DEMO.md` is a placeholder until the kit is uploaded.
+  - The macOS commands in the guide are unverified.
+- **Validation:**
+  - A fresh-clone copy (140 files, nothing gitignored) followed `docs/DEMO.md` exactly:
+    - step 1 took 45 s;
+    - `setup_demo.py … --models` took 60 s, ended "Demo is ready.", and a re-run reported everything unchanged;
+    - its servers then ran MediaPipe (120 frames, 23 not visible, 19.5 s tracking) and YOLO (120 frames, 4 not visible, 12.7 s), matching the original machine.
+  - The camera video played as designed.
+  - The run skill's browser flow failed intermittently (2 of 9 runs). The cause was the driver deciding on stale results after flagging an attempt, before the on-focus reload. Fixed by waiting for the results response: 8 of 8 runs then passed, including 3 that took the "not enough data" path.
+  - A stray `VIRTUAL_ENV` caused a `uv` warning; the script now clears it for child processes.
+- **Agent involvement:** Claude Code wrote the scripts and guide, built the kit, and ran the fresh-clone verification. Human review is pending, and so is uploading the kit to the team drive.

@@ -5,6 +5,7 @@ import { Text, View } from 'react-native';
 import { CameraScreen, Pill } from '@/components/CameraScreen';
 import { CheckTile } from '@/components/rows';
 import { Button, Notice } from '@/components/ui';
+import { useDemoClip } from '@/lib/hooks';
 import { colors, space, type } from '@/lib/theme';
 
 type CheckId = 'court' | 'player' | 'stable' | 'quality';
@@ -31,9 +32,11 @@ export default function CameraCheck() {
   });
   const failing = CHECKS.find((c) => !checks[c.id]);
   const allPass = !failing;
+  const { previewUri } = useDemoClip();
 
   return (
     <CameraScreen
+      video={previewUri ? { uri: previewUri, playing: true, loop: true } : undefined}
       frame={checks.player ? 'ok' : 'bad'}
       left={<Pill dot={allPass ? '#3BD47E' : colors.danger}>{allPass ? 'Ready' : 'Not ready'}</Pill>}
       right={<Pill>Live preview</Pill>}

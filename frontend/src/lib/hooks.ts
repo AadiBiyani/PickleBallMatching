@@ -1,7 +1,7 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { api, ApiError } from './api';
+import { api, ApiError, mediaUrl } from './api';
 import type { Drill } from './types';
 
 /** Re-run `reload` whenever the screen regains focus (skips the first focus). */
@@ -54,4 +54,15 @@ export function useApi<T>(fn: () => Promise<T>, deps: unknown[] = []): AsyncStat
 export function useDrill(drillId: string | undefined): AsyncState<Drill[]> & { drill: Drill | undefined } {
   const state = useApi(api.drills);
   return { ...state, drill: state.data?.find((d) => d.id === drillId) };
+}
+
+/**
+ * The prototype's fixed demo clip, and the URL of its browser-playable copy
+ * (undefined when no preview was made, so camera screens fall back to the
+ * static court).
+ */
+export function useDemoClip() {
+  const state = useApi(api.demoClip);
+  const clip = state.data ?? undefined;
+  return { ...state, clip, previewUri: clip?.preview_url ? mediaUrl(clip.preview_url) : undefined };
 }

@@ -6,3 +6,6 @@ __pycache__/
 # Pre-recorded clips are large and may contain identifiable people; keep them out of git.
 sample_clips/*
 !sample_clips/README.md
+
+# Harness run folders (results.csv, summary.json) produced when real models analyze a clip.
+harness_runs/

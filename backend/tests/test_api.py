@@ -66,7 +66,7 @@ def test_track_endpoint_returns_harness_rows():
     rows = client.get(f"/api/sessions/{sid}/track").json()
     summary = client.get(f"/api/sessions/{sid}/results").json()["track"]
     assert len(rows) == summary["frames"] == 600  # 20 feeds x 3 s x 10 fps
-    assert set(rows[0]) == {"frame_index", "time_s", "x_px", "y_px", "x_ft", "y_ft", "zone"}
+    assert set(rows[0]) == {"frame_index", "source_frame_index", "time_s", "x_px", "y_px", "x_ft", "y_ft", "zone"}
     assert summary["missing_frames"] == sum(r["zone"] == "not_visible" for r in rows)
     assert sum(summary["zone_counts"].values()) == 600
 

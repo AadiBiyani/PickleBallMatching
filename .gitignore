@@ -33,3 +33,7 @@ experiments/player-tracking/output/
 # Local-only files: team reference material and run-skill server logs
 ref/
 .run-logs/
+
+# Demo kits (footage of identifiable players); share through the team drive, never git. See docs/DEMO.md.
+demo-kit/
+pickleball-demo-kit-*.zip

@@ -3,12 +3,14 @@ import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { CameraScreen, Pill } from '@/components/CameraScreen';
+import { useDemoClip } from '@/lib/hooks';
 
 /** Figma 2.4 Countdown before recording starts. */
 export default function Countdown() {
   const router = useRouter();
   const { drillId } = useLocalSearchParams<{ drillId: string }>();
   const [n, setN] = useState(3);
+  const { previewUri } = useDemoClip();
 
   useEffect(() => {
     if (n === 0) {
@@ -22,6 +24,7 @@ export default function Countdown() {
   return (
     <CameraScreen
       full
+      video={previewUri ? { uri: previewUri, playing: false } : undefined}
       frame="ok"
       left={<Pill>Get set</Pill>}
       overlay={

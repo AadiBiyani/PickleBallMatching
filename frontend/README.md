@@ -1,5 +1,7 @@
 # Frontend: mobile app (prototype)
 
+> **Running the full demo** (the demo clip in the camera screens, plus real MediaPipe and YOLO results)? Follow [`docs/DEMO.md`](../docs/DEMO.md).
+
 Expo (React Native + TypeScript) app for the record → upload → analysis flow. For the prototype it runs in a desktop browser through react-native-web. The same screens can later be built for iOS.
 
 ## Run
@@ -30,10 +32,10 @@ Checks: `npx tsc --noEmit`.
 | `/drills` | 1.2 Choose a drill |
 | `/drill/[drillId]` | 1.3 Drill instructions |
 | `/drill/[drillId]/checklist` | 1.4 Readiness checklist (+ feed method) |
-| `/record/camera` | 2.2 / 2.3 Camera check (static court; tap a check to simulate) |
-| `/record/countdown` | 2.4 Countdown |
-| `/record/recording` | 2.5 Recording (auto-stops at 60 s) |
-| `/session/[id]/model` | Prototype-only vision model + clip selector (before upload) |
+| `/record/camera` | 2.2 / 2.3 Camera check (demo clip loops as the live preview; tap a check to simulate) |
+| `/record/countdown` | 2.4 Countdown (demo clip paused on its first frame) |
+| `/record/recording` | 2.5 Recording (demo clip plays from 0:00; stops at 60 s or when the clip ends) |
+| `/session/[id]/model` | Prototype-only vision model selector before upload; the demo clip is the fixed recording |
 | `/session/[id]/upload-error` | 3.2 Upload error (retry, same session) |
 | `/session/[id]/status` | 3.3 Upload & processing status (polls API) |
 | `/session/[id]/processing-error` | 3.4 Processing error |
@@ -41,6 +43,8 @@ Checks: `npx tsc --noEmit`.
 | `/session/[id]/attempts` | 4.2 Review attempts + 4.3 flag sheet |
 | `/session/[id]/published` | 4.4 Assessment published |
 | `/partners` | Dummy matches (section 5 placeholder) |
+
+The camera screens play the backend's demo clip (`test-60s.mp4`) using `expo-video`, always muted so browsers allow autoplay. They need its browser-playable copy; see "Demo clip and camera playback" in `../backend/README.md`. Without it, they show the static court illustration and the model screen shows a clip picker.
 
 Where the Figma mockup and the SDP disagree, the app follows the SDP:
 

@@ -7,6 +7,7 @@ order far-left, far-right, near-right, near-left.
 """
 
 import json
+import os
 from pathlib import Path
 
 from . import court
@@ -14,6 +15,14 @@ from .schemas import Clip
 
 CLIP_DIR = Path(__file__).resolve().parent.parent / "sample_clips"
 CORNERS_PATH = CLIP_DIR / "corners.json"
+# Precomputed runs for export-backed models (YOLO), keyed by model id then clip file name.
+# See exports.example.json. Paths inside are relative to sample_clips/.
+EXPORTS_PATH = CLIP_DIR / "exports.json"
+# Browser-playable copies made by scripts/make_preview.py; shown in the app, never analyzed.
+PREVIEW_SUFFIX = ".preview"
+# The prototype's fixed demo clip: the "recording" the camera screens play back and the
+# model screen analyzes. Falls back to the clip picker when the file is absent.
+DEMO_CLIP = os.environ.get("PBM_DEMO_CLIP", "test-60s.mp4")
 _EXTENSIONS = {".mp4", ".mov"}
 
 # The synthetic clip's "camera": the same corners as the harness's corners.example.json.
@@ -34,6 +43,39 @@ def _registry() -> dict:
     return data["videos"]
 
 
+def _exports() -> dict:
+    if not EXPORTS_PATH.is_file():
+        return {}
+    try:
+        data = json.loads(EXPORTS_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def yolo_args(clip_id: str) -> list[str] | None:
+    """Harness CLI args to replay a registered YOLO export for this clip, or None if there is none.
+
+    Entry shape: {"positions": "<file in sample_clips>", "player_id": "player_1",
+                  "start_frame": 600, "stop_frame": 890}
+    """
+    entry = _exports().get("yolo", {}).get(clip_id)
+    if not isinstance(entry, dict) or not entry.get("positions") or not entry.get("player_id"):
+        return None
+    positions = CLIP_DIR / entry["positions"]
+    if not positions.is_file():
+        return None
+    args = ["--positions", str(positions), "--player-id", str(entry["player_id"])]
+    if entry.get("start_frame") is not None:
+        args += ["--start-frame", str(int(entry["start_frame"]))]
+    if entry.get("stop_frame") is not None:
+        args += ["--stop-frame", str(int(entry["stop_frame"]))]
+    return args
+
+
+_EXPORT_READERS = {"yolo": yolo_args}
+
+
 def list_clips() -> list[Clip]:
     try:
         videos = _registry()
@@ -45,11 +87,24 @@ def list_clips() -> list[Clip]:
             name=p.stem,
             size_mb=round(p.stat().st_size / 1_000_000, 1),
             has_corners=p.name in videos,
+            exports=[model_id for model_id, read in _EXPORT_READERS.items() if read(p.name) is not None],
+            preview_url=f"/api/clips/{p.name}/preview" if preview_path(p.name) else None,
         )
         for p in sorted(CLIP_DIR.glob("*"))
-        if p.suffix.lower() in _EXTENSIONS
+        if p.suffix.lower() in _EXTENSIONS and not p.stem.endswith(PREVIEW_SUFFIX)
     ]
     return clips + [SYNTHETIC]
+
+
+def preview_path(clip_id: str) -> Path | None:
+    """The browser-playable copy of a clip, if one was made."""
+    path = CLIP_DIR / f"{Path(clip_id).stem}{PREVIEW_SUFFIX}.mp4"
+    return path if path.is_file() else None
+
+
+def demo_clip() -> Clip | None:
+    """The fixed demo clip, if it is present in sample_clips."""
+    return next((c for c in list_clips() if c.id == DEMO_CLIP), None)
 
 
 def resolve(clip_id: str) -> tuple[Clip, Path | None] | None:

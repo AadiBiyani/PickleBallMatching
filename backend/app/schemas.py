@@ -52,6 +52,10 @@ class VisionModelInfo(BaseModel):
     # "court": the model reports court feet itself (expected default); "image": pixels
     # the backend projects with the clip's saved corners (court evaluation harness style).
     output_space: Literal["court", "image"]
+    needs_corners: bool  # the clip's saved court corners are required
+    needs_export: bool  # a precomputed run must be registered for the clip (YOLO replay)
+    available: bool  # the model can run on this machine (environment present)
+    unavailable_reason: str | None = None
 
 
 class Clip(BaseModel):
@@ -60,6 +64,8 @@ class Clip(BaseModel):
     size_mb: float | None = None
     synthetic: bool = False
     has_corners: bool = False  # court corners saved in sample_clips/corners.json
+    exports: list[str] = Field(default_factory=list)  # model ids with a precomputed run for this clip
+    preview_url: str | None = None  # browser-playable copy (H.264), relative to the API base
 
 
 # ---- Vision output (FR-08) -------------------------------------------------
@@ -83,6 +89,7 @@ Zone = Literal[
 
 class CourtPoint(BaseModel):
     frame_index: int
+    source_frame_index: int | None = None  # original decoded frame, when the harness reports it
     time_s: float
     x_px: float | None  # None when the player was not visible in this frame
     y_px: float | None
@@ -100,6 +107,8 @@ class TrackSummary(BaseModel):
     frames: int
     missing_frames: int  # frames with no player point (zone "not_visible")
     zone_counts: dict[str, int]
+    processing_s: float | None = None  # wall-clock time of the tracking step (NFR-01 evidence)
+    harness_run: str | None = None  # harness run folder, relative to backend/, when the harness ran
 
 
 # ---- Attempts and results (FR-09 - FR-12) ---------------------------------

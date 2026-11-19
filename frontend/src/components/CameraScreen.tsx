@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, radius, space } from '@/lib/theme';
+import { ClipVideo } from './ClipVideo';
 import { CameraCourt, type PlayerFrame } from './court';
 import { ChevronLeft, StatusDot } from './icons';
 import { goBack } from './ui';
@@ -16,9 +17,18 @@ export function Pill({ children, dot }: { children: ReactNode; dot?: string }) {
   );
 }
 
+/** Plays the demo clip as the camera feed (see ClipVideo). */
+export interface FeedVideo {
+  uri: string;
+  playing: boolean;
+  loop?: boolean;
+  onEnd?: () => void;
+}
+
 /**
- * Dark camera layout shared by Figma 2.2-2.5. The "feed" is a static court
- * illustration; real capture is out of scope for the prototype.
+ * Dark camera layout shared by Figma 2.2-2.5. Real capture is out of scope for
+ * the prototype: the "feed" plays the pre-recorded demo clip when a playable
+ * copy exists, and otherwise shows a static court illustration.
  */
 export function CameraScreen({
   left,
@@ -29,6 +39,7 @@ export function CameraScreen({
   panel,
   full = false,
   back = true,
+  video,
 }: {
   left?: ReactNode;
   right?: ReactNode;
@@ -38,11 +49,16 @@ export function CameraScreen({
   panel?: ReactNode;
   full?: boolean;
   back?: boolean;
+  video?: FeedVideo;
 }) {
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <View style={[styles.feed, full ? { flex: 1 } : { height: 420 }]}>
-        <CameraCourt frame={frame} showBall={showBall} />
+        {video ? (
+          <ClipVideo uri={video.uri} playing={video.playing} loop={video.loop} onEnd={video.onEnd} />
+        ) : (
+          <CameraCourt frame={frame} showBall={showBall} />
+        )}
         <View style={styles.topBar}>
           <View style={styles.topLeft}>
             {back && (
@@ -55,7 +71,7 @@ export function CameraScreen({
           {right}
         </View>
         {overlay && <View style={styles.overlay}>{overlay}</View>}
-        <Text style={styles.simulated}>Simulated camera view</Text>
+        <Text style={styles.simulated}>{video ? 'Pre-recorded clip (simulated camera)' : 'Simulated camera view'}</Text>
       </View>
       {panel && <View style={styles.panel}>{panel}</View>}
     </SafeAreaView>

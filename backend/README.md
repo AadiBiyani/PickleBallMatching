@@ -1,5 +1,7 @@
 # Backend (prototype API)
 
+> **Running the demo on a new machine?** Start with [`docs/DEMO.md`](../docs/DEMO.md). It covers installing the app, the demo kit (footage, corners, and YOLO run, which aren't in git), and setting up the model environments with `scripts/setup_demo.py`.
+
 FastAPI service for the record → upload → analysis flow. Recording, upload, and attempt scoring are simulated. Player tracking follows the team's **court evaluation harness** (`experiments/vlm-harness/` on `nishaant/experiment/no-issue-court-eval-harness`). Frames are sampled from the chosen pre-recorded clip, and the selected model returns one image point per frame. The backend then maps each point to court feet and a zone exactly as the harness does.
 
 ## Run (Windows PowerShell)
@@ -33,6 +35,78 @@ Feet are the project's unit for positions and distances. **Court feet:** the ori
 
 `app/court.py` solves the homography in pure Python, so the API doesn't need OpenCV. `tests/test_court.py` repeats the harness's zone and homography test cases. A one-off comparison against the harness's OpenCV `perspective.py` gave identical results for points on the court (within 1e-5 ft).
 
+## Real models (MediaPipe, YOLO) through the court harness
+
+MediaPipe and YOLO each need their own Python environment: they pin different OpenCV distributions, and YOLO is locked to Python 3.12. So the backend never imports them. For these models it runs the court evaluation harness as a subprocess with that model's interpreter, from `experiments/vlm-harness/`:
+
+```
+<model python> -m harness.run <clip> --analyzer <spec> --corners sample_clips/corners.json --fps <n> --output harness_runs/<session> [model args]
+```
+
+It then reads the run's `results.csv`, which is already in court feet with the harness's zones. The run folder is kept under `backend/harness_runs/`, which is gitignored, and is listed in the results as `track.harness_run`. A model whose environment is missing shows as unavailable in the app, with the reason.
+
+| Model | Environment the backend looks for | Notes |
+| --- | --- | --- |
+| `mediapipe` | `experiments/vlm-harness/.venv` | Runs live. Samples 2 fps; heel point, one pose per frame |
+| `yolo` | `experiments/player-tracking-yolo/.venv` | Replays a completed tracking export registered in `sample_clips/exports.json` |
+
+Set `PBM_MEDIAPIPE_PYTHON` or `PBM_YOLO_PYTHON` to use an interpreter elsewhere.
+
+**MediaPipe setup.** This was verified on Windows with Python 3.13.12; the harness README asks for Python 3.9 or newer. Run it from the repository root. The first line uses `uv` to find an installed Python 3.13; run `uv python install 3.13` first if you don't have one.
+
+```powershell
+& (uv python find 3.13) -m venv experiments\vlm-harness\.venv
+.\experiments\vlm-harness\.venv\Scripts\python.exe -m pip install -r experiments\vlm-harness\requirements.txt
+```
+
+In PowerShell, start a relative program path with `.\`. Without it, `experiments\…\python.exe` is read as a module-qualified command, and PowerShell fails with "The module 'experiments' could not be loaded".
+
+The first MediaPipe run downloads `pose_landmarker_lite.task` (5.5 MB) into `experiments/player-tracking/models/`, which is gitignored.
+
+**YOLO setup.** Verified on Windows with `uv` 0.11.2, which fetched Python 3.12.13. The environment is about 0.94 GB. See also `experiments/player-tracking-yolo/README.md`. From the repository root:
+
+```powershell
+cd experiments\player-tracking-yolo
+uv sync --frozen --python 3.12
+.\.venv\Scripts\player-tracker.exe prepare-model
+.\.venv\Scripts\player-tracker.exe preview ..\..\backend\sample_clips\YOUR_CLIP.mp4 --frame 0 --output runtime\preview
+```
+
+1. In `runtime\preview\preview.json`, choose the candidate box of the player to follow. `preview.jpg` doesn't draw the boxes, so match them by their pixel coordinates.
+2. Track that player, passing the box's x1 y1 x2 y2:
+
+   ```powershell
+   .\.venv\Scripts\player-tracker.exe run ..\..\backend\sample_clips\YOUR_CLIP.mp4 --frame 0 --max-frames 1800 --bbox X1 Y1 X2 Y2 --output runtime\YOUR_RUN
+   ```
+
+3. Copy the run's `positions.json` (under `runtime\YOUR_RUN\<id>\`) into `backend/sample_clips/`.
+4. Register it in `backend/sample_clips/exports.json`. See `exports.example.json` for the shape: the file, `player_id` (`player_1` for the first selected box), and the tracked `start_frame`/`stop_frame` window.
+
+The harness checks that the export's SHA-256 matches the clip, so register the export against the exact file that was tracked.
+
+**Clips.** Every clip analyzed by a harness model needs its corners in `sample_clips/corners.json`. You can create them with the harness's corner tool, which opens an OpenCV window:
+
+```powershell
+.\experiments\vlm-harness\.venv\Scripts\python.exe experiments\player-tracking\mark_corners.py backend\sample_clips\YOUR_CLIP.mp4 --registry backend\sample_clips\corners.json
+```
+
+## Demo clip and camera playback
+
+The prototype uses one fixed demo clip as its "recording": `sample_clips/test-60s.mp4`. Set `PBM_DEMO_CLIP` to use a different file.
+
+- **Camera screens:** the app plays the clip in place of a live camera. The camera check loops it, the countdown holds the first frame, and recording plays it from the start; when the clip ends, recording stops.
+- **Model screen:** the clip is shown as the recording instead of a clip picker.
+- **Fallback:** if the file is missing, the app falls back to the clip picker and the static court illustration.
+
+Clips written by OpenCV (such as a trimmed copy) use MPEG-4 Part 2 (`mp4v`), which browsers don't play. Make a browser-playable copy once per clip:
+
+```powershell
+python -m pip install imageio-ffmpeg
+python backend\scripts\make_preview.py backend\sample_clips\test-60s.mp4
+```
+
+This writes `test-60s.preview.mp4`: H.264, 1280 px wide, with no audio. The result for `test-60s.mp4` was 3.7 MB, made in 6 s. Preview files are served at `/api/clips/{id}/preview` and are never listed or analyzed as clips. The original is untouched, so its corners and the YOLO export stay valid.
+
 ## Add your vision model
 
 - **You already wrote a harness analyzer** (an object with `kind`, `model_id`, `is_remote`, and `locate(frames)`): wrap it in `app/vision/__init__.py`. Nothing else is needed. It is treated as a pixel model (`"image"`) unless you pass `output_space="court"` once it reports feet.
@@ -62,8 +136,10 @@ Frames have the harness frame fields (`index`, `time_s`, `width_px`, `height_px`
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/api/drills` | Versioned drill definitions (FR-03) |
-| GET | `/api/models` | Registered vision models (prototype selector) |
-| GET | `/api/clips` | Pre-recorded clips + synthetic clip |
+| GET | `/api/models` | Registered vision models, with availability and clip requirements (prototype selector) |
+| GET | `/api/clips` | Pre-recorded clips + synthetic clip, with saved corners and registered exports |
+| GET | `/api/demo-clip` | The fixed demo clip (the prototype's "recording"), or null |
+| GET | `/api/clips/{id}/preview` | Browser-playable copy of a clip for the camera screens (supports Range requests) |
 | POST | `/api/sessions` | Create a session when a recording stops (FR-05) |
 | POST | `/api/sessions/{id}/upload` | "Upload": send clip to model and queue analysis; safe to retry (FR-07, NFR-04) |
 | GET | `/api/sessions/{id}` | Status: awaiting_upload → uploaded → queued → processing → completed / failed (FR-06) |

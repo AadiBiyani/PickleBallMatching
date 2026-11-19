@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
 from . import clips, pipeline
 from .drills import DRILLS, get_drill
@@ -66,6 +67,22 @@ def list_clips() -> list[Clip]:
     return clips.list_clips()
 
 
+@app.get("/api/demo-clip")
+def demo_clip() -> Clip | None:
+    """The prototype's fixed "recording": played in the camera screens and sent for analysis."""
+    return clips.demo_clip()
+
+
+@app.get("/api/clips/{clip_id}/preview")
+def clip_preview(clip_id: str) -> FileResponse:
+    """Browser-playable copy of a clip (supports Range requests for seeking)."""
+    resolved = clips.resolve(clip_id)  # only known clips; no arbitrary paths
+    path = clips.preview_path(clip_id) if resolved else None
+    if path is None:
+        raise HTTPException(404, "No preview for this clip. Make one with scripts/make_preview.py.")
+    return FileResponse(path, media_type="video/mp4")
+
+
 @app.post("/api/sessions", status_code=201)
 def create_session(req: CreateSessionRequest) -> Session:
     """FR-05: a finished recording becomes a session with its metadata."""
@@ -106,12 +123,12 @@ def upload(session_id: str, req: UploadRequest, background: BackgroundTasks) -> 
         if resolved is None:
             raise HTTPException(400, "Unknown clip.")
         clip, path = resolved
-        if model.requires_clip_file and path is None:
-            raise HTTPException(400, f"{model.name} needs a real video clip, not the synthetic one.")
-        if model.output_space == "image" and not clip.has_corners:
-            raise HTTPException(
-                400, f"No court corners are saved for {clip.name}. Add them to sample_clips/corners.json."
-            )
+        unavailable = model.unavailable_reason()
+        if unavailable:
+            raise HTTPException(400, f"{model.name} is unavailable: {unavailable}")
+        problem = model.clip_problem(clip, path)
+        if problem:
+            raise HTTPException(400, problem)
         s = store.update(session_id, upload_attempts=s.upload_attempts + 1)
         if s.scenario == "upload_error" and s.upload_attempts == 1:
             raise HTTPException(

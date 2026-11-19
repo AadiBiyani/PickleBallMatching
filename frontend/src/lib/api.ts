@@ -49,6 +49,8 @@ export const api = {
   drills: () => request<Drill[]>('/api/drills'),
   models: () => request<VisionModelInfo[]>('/api/models'),
   clips: () => request<Clip[]>('/api/clips'),
+  /** The prototype's fixed "recording"; null when its file is not in backend/sample_clips. */
+  demoClip: () => request<Clip | null>('/api/demo-clip'),
   profile: () => request<PublishedProfile | null>('/api/profile'),
 
   createSession: (body: {
@@ -72,3 +74,6 @@ export const api = {
     request<Session>('/api/debug/sessions', { method: 'POST', body: { state, scenario } }),
   debugReset: () => request<void>('/api/debug/reset', { method: 'POST' }),
 };
+
+/** Absolute URL for a media path returned by the API (e.g. a clip preview). */
+export const mediaUrl = (path: string) => `${API_URL}${path}`;

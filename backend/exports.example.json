@@ -1,0 +1,10 @@
+{
+  "yolo": {
+    "drill.mp4": {
+      "positions": "drill.positions.json",
+      "player_id": "player_1",
+      "start_frame": 0,
+      "stop_frame": 300
+    }
+  }
+}

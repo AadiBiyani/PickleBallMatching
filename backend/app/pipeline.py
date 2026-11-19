@@ -1,10 +1,15 @@
 """Background analysis (stands in for the Celery worker in SDP D-02).
 
-Tracking: frames are sampled from the clip and the selected model returns one
-point per frame, in court feet (the expected default) or in image pixels, which
-this module maps to feet with the clip's saved corners as the team's court
-evaluation harness does. The zone is always derived here (see `project_points`). Attempt classification and scoring inputs are
-still simulated until the ball tracker and attempt classifier exist.
+Tracking has two paths:
+- In-process models: frames are sampled here and the model returns one point
+  per frame, in court feet (the expected default) or in image pixels, which
+  this module maps to feet with the clip's saved corners as the team's court
+  evaluation harness does (see `project_points`).
+- Harness models (MediaPipe, YOLO): the court evaluation harness runs in the
+  model's own Python environment and its results.csv, already in feet with
+  zones, becomes the track (see vision/harness_process.py).
+Attempt classification and scoring inputs are still simulated until the ball
+tracker and attempt classifier exist.
 """
 
 import random
@@ -19,8 +24,10 @@ from .frames import ClipFrames, Frame, extract_frames, synthetic_frames
 from .schemas import Attempt, CourtPoint, Drill, Results, Scenario, TrackSummary
 from .store import store
 from .vision import LocatedPoint, VisionModel, get_model
+from .vision.harness_process import RUNS_DIR, HarnessError, HarnessProcessModel
 
-ANALYSIS_VERSION = "proto-0.2"  # 0.2: harness court contract (image points -> feet -> zone)
+# 0.2: harness court contract (image points -> feet -> zone); 0.3: real models via the harness CLI
+ANALYSIS_VERSION = "proto-0.3"
 STEP_DELAY_S = 1.5
 INSUFFICIENT_FEEDS = 9  # recording "stopped early" in the insufficient_data scenario
 
@@ -129,8 +136,12 @@ def project_points(
 
 
 def sample_clip(model: VisionModel, clip_path, drill: Drill) -> ClipFrames:
-    """Frames at the model's sampling rate. The synthetic clip lasts one feed interval per feed."""
-    if clip_path is None:
+    """Frames at the model's sampling rate. The synthetic clip lasts one feed interval per feed.
+
+    Models that never read pixels (the simulated tracker) always get synthetic frames,
+    so a real clip is never decoded for them.
+    """
+    if clip_path is None or not model.requires_clip_file:
         width, height = clips.SYNTHETIC_SIZE
         return synthetic_frames(drill.feed_count * 3.0, model.sample_fps, width, height)
     return extract_frames(clip_path, model.sample_fps)
@@ -154,30 +165,47 @@ def run(session_id: str, step_delay_s: float | None = None) -> None:
         return
     _, clip_path = resolved
 
+    by_harness = isinstance(model, HarnessProcessModel)
     sampled: ClipFrames | None = None
     corners_px: list[court.Point] | None = None
     rows: list[CourtPoint] = []
+    frame_size: tuple[int, int] = (0, 0)
+    processing_s: float | None = None
+    harness_run: str | None = None
     for step in range(1, len(s.steps)):
         store.update(session_id, step=step, progress=step / len(s.steps))
         time.sleep(step_delay_s)
         try:
-            if step == 1:  # Detect court boundaries: sample frames; image models need saved corners
-                sampled = sample_clip(model, clip_path, drill)
-                if model.output_space == "image":
-                    corners_px = clips.corners_for(s.clip_id or "", sampled.native_width, sampled.native_height)
+            if step == 1:  # Detect court boundaries
+                if by_harness:
+                    # The harness samples the clip and loads its corners itself; just confirm inputs exist.
+                    if clip_path is None or not clips.CORNERS_PATH.is_file():
+                        raise court.CalibrationError("this clip has no saved court corners")
+                else:
+                    sampled = sample_clip(model, clip_path, drill)
                     first = sampled.frames[0]
-                    corners_px = court.scale_corners(
-                        corners_px, (sampled.native_width, sampled.native_height), (first.width_px, first.height_px)
-                    )
-            elif step == 2:  # Track player: feet from court models, projected pixels from image models
+                    frame_size = (first.width_px, first.height_px)
+                    if model.needs_corners:
+                        corners_px = clips.corners_for(s.clip_id or "", sampled.native_width, sampled.native_height)
+                        corners_px = court.scale_corners(
+                            corners_px, (sampled.native_width, sampled.native_height), frame_size
+                        )
+            elif step == 2:  # Track player
                 if s.scenario == "processing_error":
                     raise _Unanalyzable(
                         "We lost track of the player for most of the recording, so no attempts "
                         "could be scored. Re-record with your whole body and the court lines in frame."
                     )
-                points = list(model.locate(sampled.frames))
-                rows = project_points(sampled.frames, points, corners_px)
-        except _Unanalyzable as exc:
+                if by_harness:
+                    run = model.analyze_clip(clip_path, clips.CORNERS_PATH, session_id)
+                    rows, frame_size, processing_s = run.rows, run.frame_size_px, run.processing_s
+                    harness_run = run.run_dir.relative_to(RUNS_DIR.parent).as_posix()
+                else:
+                    started = time.perf_counter()
+                    points = list(model.locate(sampled.frames))
+                    rows = project_points(sampled.frames, points, corners_px)
+                    processing_s = round(time.perf_counter() - started, 2)
+        except (_Unanalyzable, HarnessError) as exc:
             store.update(session_id, status="failed", error=str(exc))
             return
         except court.CalibrationError as exc:
@@ -188,7 +216,6 @@ def run(session_id: str, step_delay_s: float | None = None) -> None:
             return
 
     attempts = simulate_attempts(drill, seed_for(session_id), s.scenario)
-    first = sampled.frames[0]
     with store.lock:
         store.attempts[session_id] = attempts
         store.track_points[session_id] = rows
@@ -197,10 +224,12 @@ def run(session_id: str, step_delay_s: float | None = None) -> None:
             model_id=model.model_id,
             model_version=model.version,
             sample_fps=model.sample_fps,
-            frame_size_px=(first.width_px, first.height_px),
+            frame_size_px=frame_size,
             frames=len(rows),
             missing_frames=sum(r.zone == court.NOT_VISIBLE for r in rows),
             zone_counts=dict(Counter(r.zone for r in rows)),
+            processing_s=processing_s,
+            harness_run=harness_run,
         )
         store.update(session_id, status="completed", step=len(s.steps), progress=1.0)
 
@@ -229,6 +258,11 @@ def build_results(session_id: str) -> Results | None:
     ]
     if track.model_id == "simulated":
         limitations.append("Prototype: tracking and attempt outcomes are simulated.")
+    else:
+        limitations.append(
+            f"Movement comes from the {track.kind} model; attempt outcomes and coverage are still simulated."
+        )
+        limitations.append("Zones cover only the near half of the court, so far-side positions read 'out of court'.")
     if len(attempts) < drill.feed_count:
         limitations.insert(0, f"Only {len(attempts)} of {drill.feed_count} feeds were recorded.")
     return Results(

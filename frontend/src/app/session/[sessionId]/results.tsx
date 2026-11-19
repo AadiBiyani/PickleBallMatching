@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { CoverageCourt } from '@/components/court';
+import { MovementCard } from '@/components/movement';
 import { Button, Card, Chip, Label, LoadState, Notice, Row, Screen, StatTile } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useApi, useReloadOnFocus } from '@/lib/hooks';
@@ -25,6 +26,7 @@ export default function ResultsScreen() {
   const router = useRouter();
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const results = useApi(() => api.results(sessionId), [sessionId]);
+  const track = useApi(() => api.track(sessionId), [sessionId]);
   useReloadOnFocus(results.reload);
   const [publishing, setPublishing] = useState(false);
   const [publishError, setPublishError] = useState<string>();
@@ -83,6 +85,12 @@ export default function ResultsScreen() {
           <Card>
             <CoverageCourt regions={r.regions} minScored={r.min_scored_per_region} />
           </Card>
+
+          {track.data && (
+            <Card>
+              <MovementCard points={track.data} track={r.track} />
+            </Card>
+          )}
 
           <Row>
             <StatTile
