@@ -30,5 +30,6 @@ experiments/player-tracking/output/
 .env
 .DS_Store
 
+# Local-only files: team reference material and run-skill server logs
 ref/
 .run-logs/

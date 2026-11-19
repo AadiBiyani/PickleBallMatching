@@ -30,15 +30,12 @@ Commands, outcomes, limitations and local evidence are in
 - **Correction:** linting the combined harness found two E402 import-order errors in the incoming MediaPipe module. Move its ordinary relative imports above the existing path setup; keep the intentional delayed `contact` import. No inference behavior changes.
 - **Validation:** the merged working tree passes 37 YOLO tests and 41 harness tests, including MediaPipe's stub-based tests. YOLO tests emit one existing FastAPI/Starlette TestClient deprecation warning. Real MediaPipe inference, Logan's UI, and remote CI are not validated by these tests. UI integration remains a separate planned change.
 
-# Agent Decisions Log
+## 2026-11-18 — Prototype UI and API for the record → upload → analysis flow
 
-This is the running record of material design decisions made in human/agent conversations, as required by `docs/DEVELOPMENT.md` (§3, "Agent-assisted code"). Add new entries at the bottom. Minor agent help (spelling, editor completion) does not need an entry.
+- **Issue/PR:** no issue; the work was assigned when the team redistributed responsibilities for the prototype. Branch `logan/feature/no-issue-prototype-ui`; pull request pending.
+- **Format:** this section was written on that branch before this log existed on `main`, and its entries are numbered AD-001 to AD-015 because the pull request description refers to those numbers. Each entry records the date, related work, who decided, the decision, alternatives, rationale, and consequences.
 
-Each entry records the date, related issue or pull request, the decision, alternatives considered, rationale, and known consequences. "Decided by" separates choices the human author made from ones the agent proposed and the author accepted.
-
-> **Status: DRAFT.** Entries AD-001 to AD-015 were drafted by the agent (Claude Code) from the session on the `logan/feature/no-issue-prototype-ui` branch. Logan must review, correct, and approve them before the pull request. Nothing here has been reviewed by the team yet.
-
----
+> **Status: DRAFT.** These entries were drafted by the agent (Claude Code) from the session on `logan/feature/no-issue-prototype-ui`. Logan must review, correct, and approve them before the pull request. Nothing here has been reviewed by the team yet.
 
 ### AD-001: SDP values override the Figma mockup
 
@@ -297,3 +294,10 @@ Each entry records the date, related issue or pull request, the decision, altern
 - **Consequences:**
   - A model that reports feet does its own court calibration, so its calibration error is not separable from its tracking error in the backend. The court evaluation harness scores only pixel models today and would need a matching option to score feet-reporting models fairly.
   - NFR-06's 0.30 m target is about 0.98 ft.
+
+## 2026-11-18 — Shared tracking UI checkpoint
+
+- **Human direction:** create `aadi/feature/no-issue-tracking-ui-integration`, then stop feature work, synchronize with UI PR #6 on main, and push the current state for teammates to review.
+- **Integration:** Logan's session UI dispatches isolated YOLO/MediaPipe workers through the existing court harness. Keep continuous selected-player YOLO tracking, exact source frames, calibration and missing observations. MediaPipe remains a first-pose detector without identity locking. Real tracking produces no attempt scores or publishable coverage profile.
+- **Merge resolution:** PR #6 (`a9774be`) squash-merged the same UI source already imported at `11b7bfa`. Verified that those trees differed only in `.gitignore` and this log. Resolve add/add conflicts by retaining the integration code and main's cleaned documentation/ignore entries; no teammate application changes were discarded.
+- **Review boundary:** this is a checkpoint, not completed delivery. Setup, actual test/browser evidence, corrections and remaining validation are recorded in [the integration notes](tracking-ui-integration.md). No raw videos, weights, generated outputs or local context/draft files are included.
