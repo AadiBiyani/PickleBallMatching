@@ -2,7 +2,7 @@
 
 One test video has its four court corners saved once. Each model then returns only the player's point in the frame it was shown. This harness maps that point through the same homography, assigns a court zone, and scores both against a label file.
 
-Registered analyzers are `fake` and `yolo`. YOLO consumes a completed continuous tracking export from [player-tracking-yolo](../player-tracking-yolo/README.md). Gemini and the pose landmarker still need adapters.
+Registered analyzers are `fake`, `mediapipe`, and `yolo`. MediaPipe returns a heel point from each sampled image. YOLO consumes a completed continuous tracking export from [player-tracking-yolo](../player-tracking-yolo/README.md). Gemini still needs an adapter.
 
 ## Setup
 
@@ -16,7 +16,7 @@ pip install -r requirements.txt
 
 For YOLO, use the separate **Python 3.12** environment in `../player-tracking-yolo/.venv`. From that experiment, run `uv sync --frozen --python 3.12` first. Run the harness with that interpreter as shown below; **do not also install this directory's requirements into the YOLO environment**. The export adapter downloads no model or dependency.
 
-The harness requirements retain the versions from `main`; MediaPipe PR #3 owns its additional model dependency. YOLO keeps its own locked `opencv-python` environment. These are separate installation paths, not one combined dependency set. The shared geometry and adapter software tests have been exercised with YOLO's installed versions, but real MediaPipe inference has not been validated in that environment. [OpenCV's package instructions](https://pypi.org/project/opencv-python/) require choosing one distribution per environment because all variants install `cv2`; installing distributions in a particular order does not provide isolation. A future shared UI can dispatch each pipeline to its environment while consuming the common result contract.
+The harness requirements include MediaPipe from merged PR #3 and retain its `opencv-contrib-python` dependency. YOLO keeps its own locked `opencv-python` environment. These are separate installation paths, not one combined dependency set. The shared geometry and adapter software tests have been exercised with YOLO's installed versions, but real MediaPipe inference has not been validated in that environment. [OpenCV's package instructions](https://pypi.org/project/opencv-python/) require choosing one distribution per environment because all variants install `cv2`; installing distributions in a particular order does not provide isolation. A future shared UI can dispatch each pipeline to its environment while consuming the common result contract.
 
 ## Save corners once
 
@@ -32,7 +32,10 @@ python ../player-tracking/mark_corners.py data/drill.mp4 --registry data/corners
 
 ```bash
 python -m harness.run data/drill.mp4 --analyzer fake --corners data/corners.json
+python -m harness.run data/drill.mp4 --analyzer mediapipe:pose-landmarker-lite --corners data/corners.json
 ```
+
+The pose analyzer finds one player's heels and returns that pixel. The first run downloads `pose_landmarker_lite.task` into `experiments/player-tracking/models/`, which is gitignored. It does not choose a zone.
 
 `--fps` defaults to 1. The frames stay at the video's own size unless `--long-side` is set. When it is set, the saved corners are scaled into that smaller frame.
 

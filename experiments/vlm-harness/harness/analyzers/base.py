@@ -30,6 +30,12 @@ def _make_fake(model: str) -> Analyzer:
     return FakeAnalyzer(model)
 
 
+def _make_mediapipe(model: str) -> Analyzer:
+    from .mediapipe_pose import PoseLandmarkerAnalyzer
+
+    return PoseLandmarkerAnalyzer(model)
+
+
 def _make_yolo(model: str, **options) -> Analyzer:
     # Optional integration: fake/other models do not import the YOLO package.
     from .yolo import YoloAnalyzer
@@ -39,6 +45,7 @@ def _make_yolo(model: str, **options) -> Analyzer:
 
 _FACTORIES: dict[str, Callable[..., Analyzer]] = {
     "fake": _make_fake,
+    "mediapipe": _make_mediapipe,
     "yolo": _make_yolo,
 }
 
