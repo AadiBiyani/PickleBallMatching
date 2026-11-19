@@ -1,4 +1,5 @@
 import { useRouter } from 'expo-router';
+import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ChevronRight } from '@/components/icons';
@@ -18,6 +19,17 @@ export default function Dashboard() {
   const profile = useApi(api.profile);
   useReloadOnFocus(profile.reload);
   const p = profile.data;
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState<string>();
+  const startTracking = async () => {
+    setStarting(true); setStartError(undefined);
+    try {
+      const now = new Date().toISOString();
+      const session = await api.createSession({ drill_id: 'lateral-prescribed', drill_version: '1.0', feed_method: 'human_feeder', capture_started_at: now, capture_ended_at: now, scenario: 'normal' });
+      router.push(`/session/${session.id}/model`);
+    } catch (e) { setStartError(String(e)); }
+    finally { setStarting(false); }
+  };
 
   return (
     <Screen>
@@ -28,6 +40,12 @@ export default function Dashboard() {
         </Text>
       </View>
 
+      <Card style={{ gap: space.sm }}>
+        <Text style={type.h2}>Player tracking demo</Text>
+        <Text style={type.small}>Choose a prerecorded test clip, mark the court and compare the available tracking pipelines. This does not score a drill.</Text>
+        <Button label="Analyze a test clip" onPress={startTracking} loading={starting} />
+        {startError && <Text style={[type.small, { color: colors.danger }]}>{startError}</Text>}
+      </Card>
       <View style={styles.hero}>
         <Text style={styles.heroLabel}>{p ? 'IMPROVE YOUR PROFILE' : 'NEW ASSESSMENT'}</Text>
         <Text style={styles.heroTitle}>Record a standardized drill</Text>

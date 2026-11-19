@@ -51,12 +51,13 @@ export default function Status() {
   }, [sessionId, router]);
 
   const steps = session?.steps ?? [];
+  const realTracking = !!session?.analysis;
   const stepState = (i: number) =>
     !session ? 'pending' : session.status === 'completed' || i < session.step ? 'done' : i === session.step ? 'active' : 'pending';
 
   return (
     <Screen
-      title="Analyzing your drill"
+      title={realTracking ? 'Tracking player positions' : 'Simulated drill analysis'}
       back={false}
       footer={<Button label="Back to Dashboard" variant="secondary" onPress={() => router.replace('/')} />}
     >
@@ -66,13 +67,13 @@ export default function Status() {
             {session ? STATUS_TEXT[session.status] : 'Connecting…'}
           </Text>
           <Text style={[type.stat, { color: colors.primary, fontSize: 26 }]}>
-            {Math.round((session?.progress ?? 0) * 100)}%
+            {realTracking ? (session?.status === 'queued' ? 'Queued' : 'Working') : `${Math.round((session?.progress ?? 0) * 100)}%`}
           </Text>
         </View>
-        <ProgressBar value={session?.progress ?? 0} />
+        {!realTracking && <ProgressBar value={session?.progress ?? 0} />}
         <Text style={type.small}>
           {session ? `Step ${Math.min(session.step + 1, steps.length)} of ${steps.length}. ` : ''}
-          Results are usually ready within a minute.
+          {realTracking ? 'Processing time depends on the model and selected window. No attempt scores are calculated.' : 'This is the simulated prototype flow.'}
         </Text>
       </Card>
       <Card style={{ paddingVertical: space.sm }}>

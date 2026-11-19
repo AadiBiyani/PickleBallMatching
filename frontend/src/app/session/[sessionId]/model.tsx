@@ -1,12 +1,14 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
 import { Button, Card, Label, LoadState, Notice, Screen } from '@/components/ui';
+import { TrackingSetup } from '@/components/TrackingSetup';
+import { SelectionControl } from '@/components/SelectionControl';
 import { api } from '@/lib/api';
 import { useApi } from '@/lib/hooks';
 import { colors, radius, space, type } from '@/lib/theme';
-import type { Clip } from '@/lib/types';
+import type { AnalysisOptions, Clip } from '@/lib/types';
 import { uploadSession } from '@/lib/upload';
 
 function Radio({ on }: { on: boolean }) {
@@ -28,37 +30,32 @@ export default function ChooseModel() {
   const models = useApi(api.models);
   const clips = useApi(api.clips);
   const session = useApi(() => api.session(sessionId), [sessionId]);
-  const [modelId, setModelId] = useState<string>();
-  const [clipId, setClipId] = useState<string>();
+  const [chosenModel, setModelId] = useState<string>();
+  const [chosenClip, setClipId] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [analysis, setAnalysis] = useState<AnalysisOptions>();
+  const modelId = chosenModel ?? (models.data?.find((m) => m.kind === 'yolo' && m.available) ?? models.data?.[0])?.id;
+  const clipId = chosenClip ?? (clips.data?.find((c) => !c.synthetic) ?? clips.data?.[0])?.id;
 
   const model = models.data?.find((m) => m.id === modelId);
   const clip = clips.data?.find((c) => c.id === clipId);
   // Only pixel-based (harness-style) models need saved corners; court models report feet themselves.
   const blockReason = (c: Clip) =>
-    model?.output_space === 'image' && !c.has_corners
+    model?.output_space === 'image' && !model.requires_calibration && !c.has_corners
       ? 'This model reports pixels and needs the clip\'s court corners. Add them to backend/sample_clips/corners.json.'
       : model?.requires_clip_file && c.synthetic
         ? 'This model needs a real video. Add one to backend/sample_clips.'
         : undefined;
   const clipAllowed = !!clip && !blockReason(clip);
 
-  useEffect(() => {
-    if (!modelId && models.data?.length) setModelId(models.data[0].id);
-  }, [models.data, modelId]);
-  useEffect(() => {
-    if (!clipId && clips.data?.length)
-      setClipId((clips.data.find((c) => !c.synthetic) ?? clips.data[0]).id);
-  }, [clips.data, clipId]);
-
   const upload = async () => {
     if (!modelId || !clipId) return;
     setBusy(true);
     setError(undefined);
-    const r = await uploadSession(sessionId, modelId, clipId);
+    const r = await uploadSession(sessionId, modelId, clipId, model?.requires_calibration ? analysis : undefined);
     if (r.ok) router.replace(`/session/${sessionId}/status`);
-    else if (r.retryable)
+    else if (r.retryable && !model?.requires_calibration)
       router.replace(`/session/${sessionId}/upload-error?model=${modelId}&clip=${encodeURIComponent(clipId)}`);
     else {
       setError(r.message);
@@ -71,10 +68,10 @@ export default function ChooseModel() {
     <Screen
       title="Analysis model"
       back={false}
-      footer={<Button label="Upload & Analyze" onPress={upload} loading={busy} disabled={!model || !clipAllowed} />}
+      footer={<Button label={model?.requires_calibration ? 'Analyze player positions' : 'Run simulated analysis'} onPress={upload} loading={busy} disabled={!model || !model.available || !clipAllowed || (model.requires_calibration && !analysis)} />}
     >
       <Notice title="Prototype only" tone="warning">
-        Pick which team member's tracking model analyzes this recording. Production will use one chosen model.
+        Choose a tracking model for a prerecorded clip. Real models estimate player positions; attempt scoring and live recording are not part of this run.
       </Notice>
       <LoadState
         loading={models.loading || clips.loading}
@@ -83,7 +80,7 @@ export default function ChooseModel() {
       />
       {session.data && (
         <Text style={type.small}>
-          Recording saved · session {session.data.id} · {session.data.feed_method.replace('_', ' ')}
+          Session {session.data.id}
         </Text>
       )}
 
@@ -92,7 +89,7 @@ export default function ChooseModel() {
           <Label>Vision model</Label>
           <View style={{ gap: space.sm }}>
             {models.data.map((m) => (
-              <Pressable key={m.id} onPress={() => setModelId(m.id)} accessibilityRole="radio" accessibilityState={{ selected: m.id === modelId }}>
+              <SelectionControl key={m.id} disabled={!m.available} onPress={() => { if (m.id !== modelId) { setAnalysis(undefined); setError(undefined); setModelId(m.id); } }} role="radio" label={m.name} checked={m.id === modelId}>
                 <Card style={[styles.option, m.id === modelId && styles.optionOn]}>
                   <Radio on={m.id === modelId} />
                   <View style={{ flex: 1 }}>
@@ -101,6 +98,7 @@ export default function ChooseModel() {
                     </Text>
                     <Text style={type.small}>{m.owner}</Text>
                     <Text style={type.small}>{m.description}</Text>
+                    {!m.available && <Text style={[type.small, { color: colors.danger }]}>{m.unavailable_reason}</Text>}
                     {m.is_remote && (
                       <Text style={[type.small, { color: colors.warning, fontWeight: '600' }]}>
                         Sends frames to an outside service. Only use clips whose participants agreed (SYS-08).
@@ -108,8 +106,21 @@ export default function ChooseModel() {
                     )}
                   </View>
                 </Card>
-              </Pressable>
+              </SelectionControl>
             ))}
+            {!models.data.some((m) => m.kind === 'gemini') && (
+              <SelectionControl disabled checked={false} role="radio" label="Gemini — Coming soon" onPress={() => {}}>
+                <Card style={[styles.option, styles.optionDisabled]}>
+                  <Radio on={false} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[type.body, { fontWeight: '600', color: colors.muted }]}>Gemini</Text>
+                    <Text style={type.small}>Liam</Text>
+                    <Text style={[type.small, { fontWeight: '600' }]}>Coming soon</Text>
+                    <Text style={type.small}>Not connected in this prototype.</Text>
+                  </View>
+                </Card>
+              </SelectionControl>
+            )}
           </View>
         </View>
       )}
@@ -125,12 +136,13 @@ export default function ChooseModel() {
               const reason = blockReason(c);
               const blocked = !!reason;
               return (
-                <Pressable
+                <SelectionControl
                   key={c.id}
                   disabled={blocked}
-                  onPress={() => setClipId(c.id)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected: c.id === clipId, disabled: blocked }}
+                  onPress={() => { if (c.id !== clipId) { setAnalysis(undefined); setError(undefined); setClipId(c.id); } }}
+                  role="radio"
+                  label={c.name}
+                  checked={c.id === clipId}
                 >
                   <Card style={[styles.option, c.id === clipId && styles.optionOn, blocked && { opacity: 0.5 }]}>
                     <Radio on={c.id === clipId} />
@@ -144,14 +156,15 @@ export default function ChooseModel() {
                       </Text>
                     </View>
                   </Card>
-                </Pressable>
+                </SelectionControl>
               );
             })}
           </View>
         </View>
       )}
+      {model?.requires_calibration && clipAllowed && clipId && <TrackingSetup key={`${model.id}:${clipId}`} model={model} clipId={clipId} onChange={setAnalysis} />}
       {error && (
-        <Notice title="Can't start the upload" tone="danger">
+        <Notice title="Can't start analysis" tone="danger">
           {error}
         </Notice>
       )}
@@ -162,6 +175,7 @@ export default function ChooseModel() {
 const styles = StyleSheet.create({
   option: { flexDirection: 'row', alignItems: 'center', gap: space.md },
   optionOn: { borderColor: colors.primary, borderWidth: 2 },
+  optionDisabled: { backgroundColor: colors.disabled },
   radio: {
     width: 22,
     height: 22,

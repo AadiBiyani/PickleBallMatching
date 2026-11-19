@@ -20,7 +20,7 @@ from .schemas import Attempt, CourtPoint, Drill, Results, Scenario, TrackSummary
 from .store import store
 from .vision import LocatedPoint, VisionModel, get_model
 
-ANALYSIS_VERSION = "proto-0.2"  # 0.2: harness court contract (image points -> feet -> zone)
+ANALYSIS_VERSION = "proto-0.3"  # Real worker tracking, explicit provenance and unavailable attempt scoring.
 STEP_DELAY_S = 1.5
 INSUFFICIENT_FEEDS = 9  # recording "stopped early" in the insufficient_data scenario
 
@@ -122,7 +122,8 @@ def project_points(
             x_ft, y_ft = round(x_ft, 3), round(y_ft, 3)
         rows.append(
             CourtPoint(
-                frame_index=frame.index, time_s=frame.time_s, x_px=x_px, y_px=y_px, x_ft=x_ft, y_ft=y_ft, zone=zone
+                frame_index=frame.index, time_s=frame.time_s, x_px=x_px, y_px=y_px, x_ft=x_ft, y_ft=y_ft, zone=zone,
+                status="not_visible" if zone == court.NOT_VISIBLE else "ok",
             )
         )
     return rows
@@ -227,9 +228,11 @@ def build_results(session_id: str) -> Results | None:
         "insufficient instead of being scored.",
         "Ranges are 95% Wilson intervals; with about 6 attempts per direction they are wide.",
     ]
-    if track.model_id == "simulated":
+    if track.data_source == "simulated":
         limitations.append("Prototype: tracking and attempt outcomes are simulated.")
-    if len(attempts) < drill.feed_count:
+    else:
+        limitations = track.limitations
+    if track.data_source == "simulated" and len(attempts) < drill.feed_count:
         limitations.insert(0, f"Only {len(attempts)} of {drill.feed_count} feeds were recorded.")
     return Results(
         session_id=s.id,
@@ -247,5 +250,6 @@ def build_results(session_id: str) -> Results | None:
         limitations=limitations,
         attempts=attempts,
         track=track,
+        attempts_source="unavailable" if track.data_source == "model" else "simulated",
         **totals,
     )

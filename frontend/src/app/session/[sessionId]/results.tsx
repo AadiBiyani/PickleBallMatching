@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { CoverageCourt } from '@/components/court';
+import { TrackingResults } from '@/components/TrackingResults';
 import { Button, Card, Chip, Label, LoadState, Notice, Row, Screen, StatTile } from '@/components/ui';
 import { api, ApiError } from '@/lib/api';
 import { useApi, useReloadOnFocus } from '@/lib/hooks';
@@ -43,6 +44,7 @@ export default function ResultsScreen() {
   };
 
   const insufficientRegions = r?.regions.filter((x) => !x.sufficient) ?? [];
+  if (r?.track.data_source === 'model') return <TrackingResults results={r} />;
   const footer = r && (
     <>
       {r.published ? (
@@ -61,6 +63,7 @@ export default function ResultsScreen() {
       <LoadState loading={results.loading && !r} error={results.error} onRetry={results.reload} />
       {r && (
         <>
+          <Notice title="Simulated results" tone="warning">Tracking, attempt outcomes and coverage statistics on this screen are fabricated prototype data.</Notice>
           <Row gap={8}>
             {r.published ? (
               <Chip label="PUBLISHED" tone="success" />

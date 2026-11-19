@@ -8,10 +8,11 @@ import threading
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 
-from . import clips, pipeline
+from . import clips, court, pipeline, tracking
 from .drills import DRILLS, get_drill
 from .schemas import (
     Clip,
@@ -28,8 +29,10 @@ from .schemas import (
 )
 from .store import DEMO_PLAYER_ID, store
 from .vision import MODELS, get_model
+from .vision.workers import RUNTIME, WorkerModel, invoke
 
 app = FastAPI(title="PickleBall Matching - prototype API", version=pipeline.ANALYSIS_VERSION)
+_previews = {}
 
 # Local prototype only: the Expo web dev server runs on a different port.
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -66,6 +69,35 @@ def list_clips() -> list[Clip]:
     return clips.list_clips()
 
 
+@app.get("/api/clips/{clip_id}/preview")
+def preview_clip(clip_id: str, model_id: str, frame_index: int = Query(default=0, ge=0)):
+    model = get_model(model_id)
+    resolved = clips.resolve(clip_id)
+    if not isinstance(model, WorkerModel) or resolved is None or resolved[1] is None:
+        raise HTTPException(422, "Choose a real model and a video clip for the preview.")
+    token = uuid.uuid4().hex
+    directory = RUNTIME / "previews" / token
+    try:
+        result = invoke(model.kind, {"operation": "preview", "kind": model.kind,
+                                    "video": str(resolved[1]), "frame_index": frame_index}, directory, timeout=120)
+        result["image_url"] = f"/api/previews/{token}.jpg"
+        result["corners_px"] = None
+        if resolved[0].has_corners:
+            result["corners_px"] = clips.corners_for(clip_id, result["source"]["width"], result["source"]["height"])
+        _previews[token] = directory / "preview.jpg"
+        return result
+    except (ValueError, court.CalibrationError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
+@app.get("/api/previews/{token}.jpg")
+def preview_image(token: str):
+    path = _previews.get(token)
+    if path is None or not path.is_file():
+        raise HTTPException(404, "Preview not found. Load the preview again.")
+    return FileResponse(path, media_type="image/jpeg")
+
+
 @app.post("/api/sessions", status_code=201)
 def create_session(req: CreateSessionRequest) -> Session:
     """FR-05: a finished recording becomes a session with its metadata."""
@@ -97,7 +129,7 @@ def upload(session_id: str, req: UploadRequest, background: BackgroundTasks) -> 
     """
     with store.lock:
         s = _session_or_404(session_id)
-        if s.status != "awaiting_upload":
+        if s.status not in ("awaiting_upload", "failed"):
             return s
         model = get_model(req.model_id)
         if model is None:
@@ -108,6 +140,10 @@ def upload(session_id: str, req: UploadRequest, background: BackgroundTasks) -> 
         clip, path = resolved
         if model.requires_clip_file and path is None:
             raise HTTPException(400, f"{model.name} needs a real video clip, not the synthetic one.")
+        if isinstance(model, WorkerModel):
+            return tracking.queue(s, req, model, clip, path, background)
+        if req.analysis is not None:
+            raise HTTPException(422, "Calibration and player selections apply only to real tracking models.")
         if model.output_space == "image" and not clip.has_corners:
             raise HTTPException(
                 400, f"No court corners are saved for {clip.name}. Add them to sample_clips/corners.json."
@@ -140,6 +176,13 @@ def get_track(session_id: str) -> list[CourtPoint]:
     return store.track_points.get(session_id, [])
 
 
+@app.get("/api/sessions/{session_id}/artifacts/{name}")
+def get_artifact(session_id: str, name: str):
+    if _session_or_404(session_id).status != "completed":
+        raise HTTPException(409, "Tracking artifacts are not ready.")
+    return FileResponse(tracking.artifact(session_id, name), filename=name)
+
+
 @app.post("/api/sessions/{session_id}/attempts/{number}/flag")
 def flag_attempt(session_id: str, number: int, req: FlagRequest) -> Results:
     """SR-9: flagged attempts keep their prediction but leave the scored counts."""
@@ -164,6 +207,8 @@ def publish(session_id: str) -> PublishedProfile:
     results = pipeline.build_results(session_id)
     if results is None:
         raise HTTPException(409, "Results are not ready.")
+    if results.attempts_source == "unavailable":
+        raise HTTPException(409, "Position tracking does not produce a scored coverage profile.")
     if not results.sufficient:
         raise HTTPException(409, "Not enough valid attempts to publish this assessment.")
     with store.lock:

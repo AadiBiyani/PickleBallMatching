@@ -1,5 +1,7 @@
 import type {
+  AnalysisOptions,
   Clip,
+  ClipPreview,
   CourtPoint,
   Drill,
   FeedMethod,
@@ -37,6 +39,7 @@ async function request<T>(path: string, init?: { method?: string; body?: unknown
     try {
       const body = await res.json();
       if (typeof body.detail === 'string') detail = body.detail;
+      else if (Array.isArray(body.detail)) detail = body.detail.map((e: { loc: string[]; msg: string }) => `${e.loc.join('.')}: ${e.msg}`).join('; ');
     } catch {
       // keep statusText
     }
@@ -49,6 +52,9 @@ export const api = {
   drills: () => request<Drill[]>('/api/drills'),
   models: () => request<VisionModelInfo[]>('/api/models'),
   clips: () => request<Clip[]>('/api/clips'),
+  preview: (clip: string, model: string, frame: number) => request<ClipPreview>(
+    `/api/clips/${encodeURIComponent(clip)}/preview?model_id=${encodeURIComponent(model)}&frame_index=${frame}`,
+  ),
   profile: () => request<PublishedProfile | null>('/api/profile'),
 
   createSession: (body: {
@@ -60,10 +66,11 @@ export const api = {
     scenario: Scenario;
   }) => request<Session>('/api/sessions', { method: 'POST', body }),
   session: (id: string) => request<Session>(`/api/sessions/${id}`),
-  upload: (id: string, body: { model_id: string; clip_id: string }) =>
+  upload: (id: string, body: { model_id: string; clip_id: string; analysis?: AnalysisOptions }) =>
     request<Session>(`/api/sessions/${id}/upload`, { method: 'POST', body }),
   results: (id: string) => request<Results>(`/api/sessions/${id}/results`),
   track: (id: string) => request<CourtPoint[]>(`/api/sessions/${id}/track`),
+  artifactUrl: (id: string, name: string) => `${API_URL}/api/sessions/${id}/artifacts/${encodeURIComponent(name)}`,
   flag: (id: string, number: number, reason: string) =>
     request<Results>(`/api/sessions/${id}/attempts/${number}/flag`, { method: 'POST', body: { reason } }),
   publish: (id: string) => request<PublishedProfile>(`/api/sessions/${id}/publish`, { method: 'POST' }),
