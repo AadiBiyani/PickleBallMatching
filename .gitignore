@@ -29,3 +29,6 @@ experiments/player-tracking/output/
 # Secrets and OS files
 .env
 .DS_Store
+
+ref/
+.run-logs/
