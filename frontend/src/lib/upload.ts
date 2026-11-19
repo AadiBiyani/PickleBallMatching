@@ -7,9 +7,14 @@ export type UploadOutcome = { ok: true } | { ok: false; retryable: boolean; mess
  * selected vision model. Network/server failures are retryable under the same
  * session ID (FR-07); 4xx errors are configuration problems.
  */
-export async function uploadSession(sessionId: string, modelId: string, clipId: string): Promise<UploadOutcome> {
+export async function uploadSession(
+  sessionId: string,
+  modelId: string,
+  clipId: string,
+  consentConfirmed = false,
+): Promise<UploadOutcome> {
   try {
-    await api.upload(sessionId, { model_id: modelId, clip_id: clipId });
+    await api.upload(sessionId, { model_id: modelId, clip_id: clipId, consent_confirmed: consentConfirmed });
     return { ok: true };
   } catch (e) {
     if (e instanceof ApiError) {

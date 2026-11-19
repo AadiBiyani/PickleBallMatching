@@ -1,0 +1,5 @@
+# Optional: the Gemini analyzer from experiments/vlm-harness (local test branch).
+# google-genai needs Python 3.11+. Frames are sent to Google; see SYS-08.
+-r requirements-vision.txt
+google-genai>=3.4,<4
+python-dotenv>=1.0,<2

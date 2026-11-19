@@ -10,10 +10,11 @@ import { uploadSession } from '@/lib/upload';
 /** Figma 3.2 Upload error. Retrying reuses the same session ID (FR-07). */
 export default function UploadError() {
   const router = useRouter();
-  const { sessionId, model = 'simulated', clip = 'synthetic' } = useLocalSearchParams<{
+  const { sessionId, model = 'simulated', clip = 'synthetic', consent } = useLocalSearchParams<{
     sessionId: string;
     model?: string;
     clip?: string;
+    consent?: string; // '1' when the model screen confirmed SYS-08 consent
   }>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -22,7 +23,7 @@ export default function UploadError() {
   const retry = async () => {
     setBusy(true);
     setError(undefined);
-    const r = await uploadSession(sessionId, model, clip);
+    const r = await uploadSession(sessionId, model, clip, consent === '1');
     if (r.ok) {
       router.replace(`/session/${sessionId}/status`);
       return;

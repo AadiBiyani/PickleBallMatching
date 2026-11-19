@@ -204,6 +204,8 @@ class CreateSessionRequest(BaseModel):
 class UploadRequest(BaseModel):
     model_id: str
     clip_id: str
+    # Required for remote models: everyone visible agreed to third-party API use (SYS-08).
+    consent_confirmed: bool = False
 
 
 class FlagRequest(BaseModel):

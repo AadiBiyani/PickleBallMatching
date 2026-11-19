@@ -114,3 +114,29 @@ def test_debug_states():
     for state in ["awaiting_upload", "completed", "failed", "published"]:
         assert client.post("/api/debug/sessions", json={"state": state}).status_code == 201
     assert client.get("/api/profile").json()["version"] == 1
+
+
+class _RemoteModel:
+    """A remote model that must never be called: the consent check comes first."""
+
+    id = "remote-test"
+    name = "Remote test model"
+    is_remote = True
+    requires_clip_file = False
+    output_space = "court"
+
+    def locate(self, frames):
+        raise AssertionError("frames must not be sent without consent")
+
+
+def test_remote_model_is_refused_without_consent(monkeypatch):
+    from app import main
+
+    monkeypatch.setattr(main, "get_model", lambda model_id: _RemoteModel() if model_id == "remote-test" else None)
+    sid = _create()
+    body = {"model_id": "remote-test", "clip_id": "synthetic"}
+    r = client.post(f"/api/sessions/{sid}/upload", json=body)
+    assert r.status_code == 400
+    assert "SYS-08" in r.json()["detail"]
+    assert client.get(f"/api/sessions/{sid}").json()["status"] == "awaiting_upload"
+    assert client.get(f"/api/sessions/{sid}").json()["upload_attempts"] == 0

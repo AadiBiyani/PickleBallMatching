@@ -60,7 +60,7 @@ export const api = {
     scenario: Scenario;
   }) => request<Session>('/api/sessions', { method: 'POST', body }),
   session: (id: string) => request<Session>(`/api/sessions/${id}`),
-  upload: (id: string, body: { model_id: string; clip_id: string }) =>
+  upload: (id: string, body: { model_id: string; clip_id: string; consent_confirmed?: boolean }) =>
     request<Session>(`/api/sessions/${id}/upload`, { method: 'POST', body }),
   results: (id: string) => request<Results>(`/api/sessions/${id}/results`),
   track: (id: string) => request<CourtPoint[]>(`/api/sessions/${id}/track`),

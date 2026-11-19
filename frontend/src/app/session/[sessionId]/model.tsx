@@ -32,8 +32,11 @@ export default function ChooseModel() {
   const [clipId, setClipId] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const [consent, setConsent] = useState(false);
 
   const model = models.data?.find((m) => m.id === modelId);
+  // Remote models send frames to an outside service; the backend refuses them without this (SYS-08).
+  const consentNeeded = !!model?.is_remote && !consent;
   const clip = clips.data?.find((c) => c.id === clipId);
   // Only pixel-based (harness-style) models need saved corners; court models report feet themselves.
   const blockReason = (c: Clip) =>
@@ -47,6 +50,7 @@ export default function ChooseModel() {
   useEffect(() => {
     if (!modelId && models.data?.length) setModelId(models.data[0].id);
   }, [models.data, modelId]);
+  useEffect(() => setConsent(false), [modelId]);
   useEffect(() => {
     if (!clipId && clips.data?.length)
       setClipId((clips.data.find((c) => !c.synthetic) ?? clips.data[0]).id);
@@ -56,10 +60,14 @@ export default function ChooseModel() {
     if (!modelId || !clipId) return;
     setBusy(true);
     setError(undefined);
-    const r = await uploadSession(sessionId, modelId, clipId);
+    const consentConfirmed = !!model?.is_remote && consent;
+    const r = await uploadSession(sessionId, modelId, clipId, consentConfirmed);
     if (r.ok) router.replace(`/session/${sessionId}/status`);
     else if (r.retryable)
-      router.replace(`/session/${sessionId}/upload-error?model=${modelId}&clip=${encodeURIComponent(clipId)}`);
+      router.replace(
+        `/session/${sessionId}/upload-error?model=${encodeURIComponent(modelId)}&clip=${encodeURIComponent(clipId)}` +
+          (consentConfirmed ? '&consent=1' : ''),
+      );
     else {
       setError(r.message);
       setBusy(false);
@@ -71,7 +79,14 @@ export default function ChooseModel() {
     <Screen
       title="Analysis model"
       back={false}
-      footer={<Button label="Upload & Analyze" onPress={upload} loading={busy} disabled={!model || !clipAllowed} />}
+      footer={
+        <Button
+          label="Upload & Analyze"
+          onPress={upload}
+          loading={busy}
+          disabled={!model || !clipAllowed || consentNeeded}
+        />
+      }
     >
       <Notice title="Prototype only" tone="warning">
         Pick which team member's tracking model analyzes this recording. Production will use one chosen model.
@@ -150,6 +165,22 @@ export default function ChooseModel() {
           </View>
         </View>
       )}
+      {model?.is_remote && (
+        <Pressable
+          onPress={() => setConsent((c) => !c)}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: consent }}
+        >
+          <Card style={[styles.option, consent && styles.optionOn]}>
+            <View style={[styles.checkbox, consent && styles.checkboxOn]}>
+              {consent && <Text style={styles.checkmark}>✓</Text>}
+            </View>
+            <Text style={[type.small, { flex: 1 }]}>
+              Everyone visible in this clip agreed to it being sent to {model.name}'s outside service (SYS-08).
+            </Text>
+          </Card>
+        </Pressable>
+      )}
       {error && (
         <Notice title="Can't start the upload" tone="danger">
           {error}
@@ -172,4 +203,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxOn: { borderColor: colors.primary, backgroundColor: colors.primary },
+  checkmark: { color: colors.card, fontSize: 14, fontWeight: '700', lineHeight: 16 },
 });
